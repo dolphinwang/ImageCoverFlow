@@ -15,7 +15,7 @@ How to use：
 Step one：add it to ur project
 1. by xml
 
-<com.dolphin.coverflowdemo.CoverFlowView
+<com.dolphinwang.imagecoverflow.CoverFlowView
         xmlns:imageCoverFlow="http://schemas.android.com/apk/res-auto"
         android:id="@+id/coverflow"
         android:layout_width="match_parent"
@@ -28,7 +28,7 @@ Step one：add it to ur project
         imageCoverFlow:reflectionHeight="30%"
         imageCoverFlow:reflectionShaderEnable="true"
         imageCoverFlow:visibleImage="5" >
-</com.dolphin.coverflowdemo.CoverFlowView>
+</com.dolphinwang.imagecoverflow.CoverFlowView>
 
 2. by java code:
 
