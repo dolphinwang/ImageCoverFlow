@@ -1,3 +1,18 @@
+/*
+ * Copyright (C) 2013 Roy Wang
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
 package com.dolphinwang.imagecoverflow;
 
 import android.annotation.SuppressLint;
@@ -692,7 +707,8 @@ public class CoverFlowView<T extends CoverFlowAdapter> extends ViewGroup {
 	 * @param density
 	 */
 	public void setScreenDensity(int density) {
-		MOVE_POS_MULTIPLE *= density;
+		float temp = MOVE_POS_MULTIPLE * density;
+		MOVE_POS_MULTIPLE = temp;
 	}
 
 	public void setVisibleImage(int count) {
@@ -711,6 +727,10 @@ public class CoverFlowView<T extends CoverFlowAdapter> extends ViewGroup {
 
 	public void enableReflection(boolean enable) {
 		this.reflectEnable = enable;
+	}
+
+	public void enableReflectionShader(boolean enable) {
+		reflectShaderEnable = enable;
 	}
 
 	public void setReflectionHeight(int fraction) {
