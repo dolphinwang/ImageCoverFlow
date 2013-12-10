@@ -20,6 +20,7 @@ import android.app.ActivityManager;
 import android.content.Context;
 import android.content.res.TypedArray;
 import android.graphics.Bitmap;
+import android.graphics.Camera;
 import android.graphics.Canvas;
 import android.graphics.Matrix;
 import android.graphics.Paint;
@@ -46,6 +47,10 @@ public class CoverFlowView<T extends CoverFlowAdapter> extends ViewGroup {
 	public enum CoverFlowGravity {
 		TOP, BOTTOM, CENTER_VERTICAL;
 	};
+
+	public enum CoverFlowLayoutMode {
+		MATCH_PARENT, WRAP_CONTENT;
+	}
 
 	/**** static field ****/
 	protected final int INVALID_POSITION = -1;
@@ -87,6 +92,8 @@ public class CoverFlowView<T extends CoverFlowAdapter> extends ViewGroup {
 
 	protected CoverFlowGravity mGravity;
 
+	protected CoverFlowLayoutMode mLayoutMode;
+
 	private Rect mCoverFlowPadding;
 
 	// 用于canvas绘图事的抗齿据
@@ -119,8 +126,6 @@ public class CoverFlowView<T extends CoverFlowAdapter> extends ViewGroup {
 
 	private int mChildHeight;
 	private int mChildTranslateY;
-
-	private int scaleCenter;
 
 	private boolean reflectEnable = false;
 	private boolean reflectShaderEnable = true;
@@ -177,7 +182,12 @@ public class CoverFlowView<T extends CoverFlowAdapter> extends ViewGroup {
 		}
 
 		mGravity = CoverFlowGravity.values()[a.getInt(
-				R.styleable.ImageCoverFlowView_coverflowGravity, 2)];
+				R.styleable.ImageCoverFlowView_coverflowGravity,
+				CoverFlowGravity.CENTER_VERTICAL.ordinal())];
+
+		mLayoutMode = CoverFlowLayoutMode.values()[a.getInt(
+				R.styleable.ImageCoverFlowView_coverflowLayoutMode,
+				CoverFlowLayoutMode.WRAP_CONTENT.ordinal())];
 
 		a.recycle();
 	}
@@ -238,8 +248,6 @@ public class CoverFlowView<T extends CoverFlowAdapter> extends ViewGroup {
 
 		mChildHeight = 0;
 
-		scaleCenter = 0;
-
 		mOffset = 0;
 		mLastOffset = -1;
 
@@ -247,6 +255,10 @@ public class CoverFlowView<T extends CoverFlowAdapter> extends ViewGroup {
 
 		if (mGravity == null) {
 			mGravity = CoverFlowGravity.CENTER_VERTICAL;
+		}
+
+		if (mLayoutMode == null) {
+			mLayoutMode = CoverFlowLayoutMode.WRAP_CONTENT;
 		}
 	}
 
@@ -288,24 +300,42 @@ public class CoverFlowView<T extends CoverFlowAdapter> extends ViewGroup {
 					: maxChildHeight;
 		}
 
-		if (heightMode == MeasureSpec.EXACTLY) {
+		if (heightMode == MeasureSpec.EXACTLY
+				|| heightMode == MeasureSpec.AT_MOST) {
+			// if height which parent provided is less than child need, scale
+			// child height to parent provide
 			if (avaiblableHeight < maxChildHeight) {
 				mChildHeight = avaiblableHeight;
 			} else {
-				mChildHeight = maxChildHeight;
+				// if larger than, depends on layout mode
+				// if layout mode is match_parent, scale child height to parent
+				// provide
+				if (mLayoutMode == CoverFlowLayoutMode.MATCH_PARENT) {
+					mChildHeight = avaiblableHeight;
+					// if layout mode is wrap_content, keep child's original
+					// height
+				} else if (mLayoutMode == CoverFlowLayoutMode.WRAP_CONTENT) {
+					mChildHeight = maxChildHeight;
+
+					// adjust parent's height
+					if (heightMode == MeasureSpec.AT_MOST) {
+						heightSize = mChildHeight + mCoverFlowPadding.top
+								+ mCoverFlowPadding.bottom;
+					}
+				}
 			}
 		} else {
-			mChildHeight = maxChildHeight;
-			if (avaiblableHeight > maxChildHeight) {
-				heightSize = maxChildHeight + mCoverFlowPadding.top
+			// height mode is unspecified
+			if (mLayoutMode == CoverFlowLayoutMode.MATCH_PARENT) {
+				mChildHeight = avaiblableHeight;
+			} else if (mLayoutMode == CoverFlowLayoutMode.WRAP_CONTENT) {
+				mChildHeight = maxChildHeight;
+
+				// adjust parent's height
+				heightSize = mChildHeight + mCoverFlowPadding.top
 						+ mCoverFlowPadding.bottom;
 			}
 		}
-
-		// 如果启用倒影，倒影也是图片的一部分
-		// if (reflectEnable) {
-		// mChildHeight -= (reflectHeight + reflectGap);
-		// }
 
 		// 根据gravity调整y轴位移
 		if (mGravity == CoverFlowGravity.CENTER_VERTICAL) {
@@ -320,7 +350,6 @@ public class CoverFlowView<T extends CoverFlowAdapter> extends ViewGroup {
 		setMeasuredDimension(widthSize, heightSize);
 		mVisibleChildCount = visibleCount;
 		mWidth = widthSize;
-		scaleCenter = mChildHeight >> 1;
 	}
 
 	/**
@@ -432,19 +461,30 @@ public class CoverFlowView<T extends CoverFlowAdapter> extends ViewGroup {
 		mDrawChildPaint.setAlpha((int) alpha);
 
 		// 移动变换中心
-		mChildTransfromMatrix.preTranslate(0, -scaleCenter);
+		mChildTransfromMatrix.preTranslate(0, -(child.getHeight() >> 1));
 
 		// matrix中的postxxx为顺序执行，相反prexxx为倒叙执行
 		mChildTransfromMatrix.postScale(childHeightScale, childHeightScale);
 
-		mChildTransfromMatrix.postTranslate(translateX, mChildTranslateY);
+		// if actually child height is larger or less than original child height
+		// need to change translate distance of y-axis
+		float adjustedChildTranslateY = 0;
+		if (childHeightScale != 1) {
+			adjustedChildTranslateY = (mChildHeight - child.getHeight()) >> 1;
+		}
+
+		mChildTransfromMatrix.postTranslate(translateX, mChildTranslateY
+				+ adjustedChildTranslateY);
+
+		Log.d(VIEW_LOG_TAG, "position= " + position + " mChildTranslateY= "
+				+ mChildTranslateY + adjustedChildTranslateY);
 
 		// 给用户一个机会，在基础变换上面加上自己所需要的变换代码
 		getCustomTransformMatrix(mChildTransfromMatrix, mDrawChildPaint, child,
 				position, offset);
 
 		// 再移动回去
-		mChildTransfromMatrix.postTranslate(0, scaleCenter);
+		mChildTransfromMatrix.postTranslate(0, (child.getHeight() >> 1));
 		/*** 进行3d变换 ***/
 	}
 
@@ -466,6 +506,17 @@ public class CoverFlowView<T extends CoverFlowAdapter> extends ViewGroup {
 	 */
 	protected void getCustomTransformMatrix(Matrix childTransfromMatrix,
 			Paint mDrawChildPaint, Bitmap child, int position, float offset) {
+
+		/** example code to make image y-axis rotation **/
+		// Camera c = new Camera();
+		// c.save();
+		// Matrix m = new Matrix();
+		// c.rotateY(10 * (-offset));
+		// c.getMatrix(m);
+		// c.restore();
+		// m.preTranslate(-(child.getWidth() >> 1), -(child.getHeight() >> 1));
+		// m.postTranslate(child.getWidth() >> 1, child.getHeight() >> 1);
+		// mChildTransfromMatrix.preConcat(m);
 	}
 
 	private void tileOnTop(int position) {
@@ -710,7 +761,7 @@ public class CoverFlowView<T extends CoverFlowAdapter> extends ViewGroup {
 	}
 
 	public void setVisibleImage(int count) {
-		if (count % 2 != 0) {
+		if (count % 2 == 0) {
 			throw new IllegalArgumentException(
 					"visible image must be an odd number");
 		}
@@ -721,6 +772,10 @@ public class CoverFlowView<T extends CoverFlowAdapter> extends ViewGroup {
 
 	public void setCoverFlowGravity(CoverFlowGravity gravity) {
 		mGravity = gravity;
+	}
+
+	public void setCoverFlowLayoutMode(CoverFlowLayoutMode mode) {
+		mLayoutMode = mode;
 	}
 
 	public void enableReflection(boolean enable) {
