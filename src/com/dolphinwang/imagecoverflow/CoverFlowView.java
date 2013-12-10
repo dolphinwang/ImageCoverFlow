@@ -129,7 +129,7 @@ public class CoverFlowView<T extends CoverFlowAdapter> extends ViewGroup {
 
 	private boolean reflectEnable = false;
 	private boolean reflectShaderEnable = true;
-	private float reflectHeight;
+	private float reflectHeightFraction;
 	private int reflectGap;
 
 	private CoverFlowListener<T> mCoverFlowListener;
@@ -167,12 +167,12 @@ public class CoverFlowView<T extends CoverFlowAdapter> extends ViewGroup {
 		reflectEnable = a.getBoolean(
 				R.styleable.ImageCoverFlowView_enableReflection, false);
 		if (reflectEnable) {
-			reflectHeight = a.getFraction(
+			reflectHeightFraction = a.getFraction(
 					R.styleable.ImageCoverFlowView_reflectionHeight, 100, 0,
 					0.3f);
-			if (reflectHeight > 100)
-				reflectHeight = 100;
-			reflectHeight /= 100;
+			if (reflectHeightFraction > 100)
+				reflectHeightFraction = 100;
+			reflectHeightFraction /= 100;
 			reflectGap = a.getDimensionPixelSize(
 					R.styleable.ImageCoverFlowView_reflectionGap, 0);
 			reflectShaderEnable = a
@@ -387,7 +387,7 @@ public class CoverFlowView<T extends CoverFlowAdapter> extends ViewGroup {
 		}
 
 		if (mLastOffset != (int) offset) {
-			tileOnTop(getActuallyPosition((int) offset));
+			imageOnTop(getActuallyPosition((int) offset));
 			mLastOffset = (int) offset;
 		}
 
@@ -519,11 +519,11 @@ public class CoverFlowView<T extends CoverFlowAdapter> extends ViewGroup {
 		// mChildTransfromMatrix.preConcat(m);
 	}
 
-	private void tileOnTop(int position) {
+	private void imageOnTop(int position) {
 
 		Bitmap child = mAdapter.getImage(position);
 
-		final int tempReflectHeight = (int) (child.getHeight() * reflectHeight);
+		final int tempReflectHeight = (int) (child.getHeight() * reflectHeightFraction);
 		final float childScale = (float) mChildHeight
 				/ (child.getHeight() + tempReflectHeight + reflectGap);
 		final int childHeight = (int) (mChildHeight * childScale - childScale
@@ -536,7 +536,7 @@ public class CoverFlowView<T extends CoverFlowAdapter> extends ViewGroup {
 		mTouchRect.bottom = mTouchRect.top + childHeight;
 
 		if (mCoverFlowListener != null) {
-			mCoverFlowListener.tileOnTop(this, position, mTouchRect.left,
+			mCoverFlowListener.imageOnTop(this, position, mTouchRect.left,
 					mTouchRect.top, mTouchRect.right, mTouchRect.bottom);
 		}
 	}
@@ -622,7 +622,7 @@ public class CoverFlowView<T extends CoverFlowAdapter> extends ViewGroup {
 			if (mTouchRect != null) {
 				if (mTouchRect.contains(event.getX(), event.getY())
 						&& mCoverFlowListener != null) {
-					mCoverFlowListener.topTileClicked(this,
+					mCoverFlowListener.topImageClicked(this,
 							getActuallyPosition((int) mOffset));
 				}
 			}
@@ -725,7 +725,7 @@ public class CoverFlowView<T extends CoverFlowAdapter> extends ViewGroup {
 
 			if (reflectEnable) {
 				Bitmap bitmapWithReflect = BitmapUtils.createReflectedBitmap(
-						bitmap, reflectHeight, reflectGap, reflectShaderEnable);
+						bitmap, reflectHeightFraction, reflectGap, reflectShaderEnable);
 
 				if (bitmapWithReflect != null) {
 					mRecycler.addBitmap2Cache(position, bitmapWithReflect);
@@ -792,7 +792,7 @@ public class CoverFlowView<T extends CoverFlowAdapter> extends ViewGroup {
 		else if (fraction > 100)
 			fraction = 100;
 
-		reflectHeight = 100;
+		reflectHeightFraction = 100;
 	}
 
 	public void setReflectionGap(int gap) {
@@ -868,10 +868,10 @@ public class CoverFlowView<T extends CoverFlowAdapter> extends ViewGroup {
 	}
 
 	public static interface CoverFlowListener<V extends CoverFlowAdapter> {
-		public void tileOnTop(final CoverFlowView<V> coverFlowView,
+		public void imageOnTop(final CoverFlowView<V> coverFlowView,
 				int position, float left, float top, float right, float bottom);
 
-		public void topTileClicked(final CoverFlowView<V> coverFlowView,
+		public void topImageClicked(final CoverFlowView<V> coverFlowView,
 				int position);
 	}
 }
