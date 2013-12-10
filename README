@@ -3,7 +3,7 @@ ImageCoverFlow
 
 To show coverflow effect on android
 
-ImageCoverFlow is an Open Source Android library that allows developers to easily create applications with coverflow effect to show image. Feel free to use it all you want in your Android apps provided that you cite this project and include the license in your app.
+ImageCoverFlow is an Open Source Android library that allows developers to easily create applications with coverflow effect to show image. Feel free to use it all you want in your Android apps provided that you cite this project and include the license in your app. (Looping mode has already supported, non-looping mode will be supported later)
 
 
 ImageCoverFlow is currently used in some published Android apps. Here's a list of some of them:
@@ -66,6 +66,13 @@ mCoverFlowView.setCoverFlowListener(new CoverFlowListener<MyCoverFlowAdapter>() 
 	@Override
 	public void topTileClicked(CoverFlowView<MyCoverFlowAdapter> view, int position){}
 });
+
+
+If u write a class extends CoverFlowView:
+
+1. You can override method getCustomTransformMatrix to make more transform to image.
+2. You should never override method onLayout to layout any of CoverFlowView’s children,
+   because all of image will draw on the canvas directly.
 
 
 Developed by: 

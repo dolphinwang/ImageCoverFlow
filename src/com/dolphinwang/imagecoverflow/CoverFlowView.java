@@ -63,7 +63,6 @@ public class CoverFlowView<T extends CoverFlowAdapter> extends ViewGroup {
 	private final int ALPHA_DATUM = 76;
 	private int STANDARD_ALPHA;
 	// 缩放相关值
-	private float FLANK_SPREAD = 0.05f;
 	private static final float CARD_SCALE = 0.15f;
 	private static float MOVE_POS_MULTIPLE = 3.0f;
 	private static final int TOUCH_MINIMUM_MOVE = 5;
@@ -331,7 +330,6 @@ public class CoverFlowView<T extends CoverFlowAdapter> extends ViewGroup {
 	@Override
 	protected void onLayout(boolean changed, int left, int top, int right,
 			int bottom) {
-		FLANK_SPREAD *= mWidth;
 	}
 
 	@Override
@@ -384,7 +382,7 @@ public class CoverFlowView<T extends CoverFlowAdapter> extends ViewGroup {
 	 * <ul>
 	 * <li>对bitmap进行伪3d变换</li>
 	 * <li>如果子类重写了这个函数，则可以对图片的3d变换进行自定义</li>
-	 * <li>若子类重写了这个函数，千万别调用super.makeChildTransfromMatrix</li>
+	 * <li>若子类重写了这个函数，可以调用父类函数在标准变换的基础上面做自定义变换</li>
 	 * </ul>
 	 * 
 	 * @param childTransfromMatrix
@@ -756,7 +754,6 @@ public class CoverFlowView<T extends CoverFlowAdapter> extends ViewGroup {
 			cacheSize = size;
 		}
 
-		// 4mb的图片缓存
 		@SuppressLint("NewApi")
 		final LruCache<Integer, Bitmap> bitmapCache = new LruCache<Integer, Bitmap>(
 				cacheSize == -1 ? getCacheSize(getContext()) : cacheSize) {
