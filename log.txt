@@ -21,4 +21,4 @@ supported:
 7. Listening top(center) image’s click event.
 
 8. Image cache.(It has already achieve an image cache, but i propose users to achieve an
-   cache outsize.)
+   cache outside.)
