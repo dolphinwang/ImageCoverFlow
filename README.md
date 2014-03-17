@@ -43,7 +43,7 @@ How to use：
 		mCoverFlowView.setCoverFlowGravity(CoverFlowGravity.CENTER_VERTICAL);
 		mCiverFlowView.setCoverFlowLayoutMode(CoverFlowLayoutMode.WRAP_CONTENT);
 		mCoverFlowView.enableReflection(true);
-		mCoverFlowView.setReflectionHeightFraction(30);
+		mCoverFlowView.setReflectionHeight(30);
 		mCoverFlowView.setReflectionGap(20);
 		mCoverFlowView.enableReflectionShader(true);
 		mCoverFlowView.setVisibleImage(5);
