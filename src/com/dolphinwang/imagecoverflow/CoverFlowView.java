@@ -792,7 +792,7 @@ public class CoverFlowView<T extends CoverFlowAdapter> extends ViewGroup {
 		else if (fraction > 100)
 			fraction = 100;
 
-		reflectHeightFraction = 100;
+		reflectHeightFraction = fraction;
 	}
 
 	public void setReflectionGap(int gap) {
