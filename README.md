@@ -41,7 +41,7 @@ How to use：
 		CoverFlowView<MyCoverFlowAdapter> mCoverFlowView=(CoverFlowView<MyCoverFlowAdapter>)findViewById(R.id.coverflow);
 		
 		mCoverFlowView.setCoverFlowGravity(CoverFlowGravity.CENTER_VERTICAL);
-		mCiverFlowView.setCoverFlowLayoutMode(CoverFlowLayoutMode.WRAP_CONTENT);
+		mCoverFlowView.setCoverFlowLayoutMode(CoverFlowLayoutMode.WRAP_CONTENT);
 		mCoverFlowView.enableReflection(true);
 		mCoverFlowView.setReflectionHeight(30);
 		mCoverFlowView.setReflectionGap(20);
