@@ -58,7 +58,9 @@ How to use：
 	MyCoverFlowAdapter adapter = new MyCoverFlowAdapter(this);
 	mCoverFlowView.setAdapter(adapter);
 
-	tips：method setAdapter should be called after all of properties of coverflow are setted。
+	tips：
+	1. method setAdapter should be called after all of properties of coverflow are setted。
+	2. if want to load image dynamic, u can call methos invalidatePosistion when bitmap loaded.
 
 
 ### Step three：if u want to listen click event of top image, u can set CoverFlowListener to it.
