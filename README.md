@@ -74,6 +74,18 @@ How to use：
 		@Override
 		public void topImageClicked(CoverFlowView<MyCoverFlowAdapter> view, int position){}
 	});
+	
+### if u want to listen long click event of top image, u can set TopImageLongClickListener to it.
+
+	mCoverFlowView
+                .setTopImageLongClickListener(new CoverFlowView.TopImageLongClickListener() {
+
+                    @Override
+                    public void onLongClick(int position) {
+                        Log.e(VIEW_LOG_TAG, "top image long clicked == >"
+                                + position);
+                    }
+                });
 
 
 If u write a class extends CoverFlowView:
