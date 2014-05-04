@@ -30,6 +30,7 @@ import android.os.Build;
 import android.support.v4.util.LruCache;
 import android.util.AttributeSet;
 import android.util.Log;
+import android.util.SparseArray;
 import android.view.MotionEvent;
 import android.view.VelocityTracker;
 import android.view.ViewGroup;
@@ -82,8 +83,6 @@ public class CoverFlowView<T extends CoverFlowAdapter> extends ViewGroup {
     private int mVisibleChildCount;
     private int mItemCount;
 
-    private int mBitmapCacheSize = -1;
-
     /**
      * True if the data has changed since the last layout
      */
@@ -131,6 +130,11 @@ public class CoverFlowView<T extends CoverFlowAdapter> extends ViewGroup {
     private boolean topImageClickEnable;
 
     private CoverFlowListener<T> mCoverFlowListener;
+
+    /**
+     * Record origin width and height of images
+     */
+    private SparseArray<int[]> mImageRecorder;
 
     public CoverFlowView(Context context) {
         super(context);
@@ -197,6 +201,8 @@ public class CoverFlowView<T extends CoverFlowAdapter> extends ViewGroup {
 
         mTouchRect = new RectF();
 
+        mImageRecorder = new SparseArray<int[]>();
+
         mDrawChildPaint = new Paint();
         mDrawChildPaint.setAntiAlias(true);
         mDrawChildPaint.setFlags(Paint.ANTI_ALIAS_FLAG);
@@ -223,7 +229,7 @@ public class CoverFlowView<T extends CoverFlowAdapter> extends ViewGroup {
                         "total count in adapter must larger than visible images!");
             }
 
-            mRecycler = new RecycleBin(mBitmapCacheSize);
+            mRecycler = new RecycleBin();
         }
 
         resetList();
@@ -258,6 +264,8 @@ public class CoverFlowView<T extends CoverFlowAdapter> extends ViewGroup {
         if (mLayoutMode == null) {
             mLayoutMode = CoverFlowLayoutMode.WRAP_CONTENT;
         }
+
+        mImageRecorder.clear();
     }
 
     @Override
@@ -285,9 +293,6 @@ public class CoverFlowView<T extends CoverFlowAdapter> extends ViewGroup {
 
         int avaiblableHeight = heightSize - mCoverFlowPadding.top
                 - mCoverFlowPadding.bottom;
-        // if (reflectEnable) {
-        // avaiblableHeight = avaiblableHeight - reflectHeight - reflectGap;
-        // }
 
         int maxChildHeight = 0;
 
@@ -396,6 +401,15 @@ public class CoverFlowView<T extends CoverFlowAdapter> extends ViewGroup {
         int actuallyPosition = getActuallyPosition(position);
         final Bitmap child = obtainImage(actuallyPosition);
 
+        int[] wAndh = mImageRecorder.get(actuallyPosition);
+        if (wAndh == null) {
+            wAndh = new int[] { child.getWidth(), child.getHeight() };
+            mImageRecorder.put(actuallyPosition, wAndh);
+        } else {
+            wAndh[0] = child.getWidth();
+            wAndh[1] = child.getHeight();
+        }
+
         if (child != null && !child.isRecycled() && canvas != null) {
 
             makeChildTransfromMatrix(mChildTransfromMatrix, mDrawChildPaint,
@@ -414,7 +428,6 @@ public class CoverFlowView<T extends CoverFlowAdapter> extends ViewGroup {
      * 
      * @param childTransfromMatrix
      * @param mDrawChildPaint
-     *            可以对paint设置alpha值，实现各个child的透明度
      * @param child
      * @param position
      * @param offset
@@ -469,8 +482,8 @@ public class CoverFlowView<T extends CoverFlowAdapter> extends ViewGroup {
         mChildTransfromMatrix.postTranslate(translateX, mChildTranslateY
                 + adjustedChildTranslateY);
 
-        Log.d(VIEW_LOG_TAG, "position= " + position + " mChildTranslateY= "
-                + mChildTranslateY + adjustedChildTranslateY);
+        // Log.d(VIEW_LOG_TAG, "position= " + position + " mChildTranslateY= "
+        // + mChildTranslateY + adjustedChildTranslateY);
 
         getCustomTransformMatrix(mChildTransfromMatrix, mDrawChildPaint, child,
                 position, offset);
@@ -511,19 +524,26 @@ public class CoverFlowView<T extends CoverFlowAdapter> extends ViewGroup {
 
     private void imageOnTop(int position) {
 
-        Bitmap child = mAdapter.getImage(position);
+        final int[] wAndh = mImageRecorder.get(position);
 
-        final int tempReflectHeight = (int) (child.getHeight() * reflectHeightFraction);
+        final int tempReflectHeight = (int) (wAndh[1] * reflectHeightFraction);
         final float childScale = (float) mChildHeight
-                / (child.getHeight() + tempReflectHeight + reflectGap);
+                / (wAndh[1] + tempReflectHeight + reflectGap);
         final int childHeight = (int) (mChildHeight * childScale - childScale
                 * tempReflectHeight - childScale * reflectGap);
-        final int childWidth = (int) (childScale * child.getWidth());
+        final int childWidth = (int) (childScale * wAndh[0]);
+
+        Log.e(VIEW_LOG_TAG, "height ==>" + childHeight + " width ==>"
+                + childWidth);
 
         mTouchRect.left = (mWidth >> 1) - (childWidth >> 1);
         mTouchRect.top = mChildTranslateY;
         mTouchRect.right = mTouchRect.left + childWidth;
         mTouchRect.bottom = mTouchRect.top + childHeight;
+
+        Log.e(VIEW_LOG_TAG, "left==>" + mTouchRect.left + " top==>"
+                + mTouchRect.top + " right==>" + mTouchRect.right
+                + " bottom==>" + mTouchRect);
 
         if (mCoverFlowListener != null) {
             mCoverFlowListener.imageOnTop(this, position, mTouchRect.left,
@@ -608,6 +628,8 @@ public class CoverFlowView<T extends CoverFlowAdapter> extends ViewGroup {
 
             startAnimation(-speed);
         } else {
+            Log.e(VIEW_LOG_TAG,
+                    " touch ==>" + event.getX() + " , " + event.getY());
             if (mTouchRect != null) {
                 if (mTouchRect.contains(event.getX(), event.getY())
                         && mCoverFlowListener != null && topImageClickEnable) {
@@ -772,10 +794,6 @@ public class CoverFlowView<T extends CoverFlowAdapter> extends ViewGroup {
         return bitmap;
     }
 
-    public void setBitmapCacheSize(int cacheSize) {
-        mBitmapCacheSize = cacheSize;
-    }
-
     /**
      * user is better to set a density of screen to make picture's movement more
      * comfortable
@@ -838,15 +856,10 @@ public class CoverFlowView<T extends CoverFlowAdapter> extends ViewGroup {
     }
 
     class RecycleBin {
-        private int cacheSize = -1;
-
-        public RecycleBin(int size) {
-            cacheSize = size;
-        }
 
         @SuppressLint("NewApi")
         final LruCache<Integer, Bitmap> bitmapCache = new LruCache<Integer, Bitmap>(
-                cacheSize == -1 ? getCacheSize(getContext()) : cacheSize) {
+                getCacheSize(getContext())) {
             @Override
             protected int sizeOf(Integer key, Bitmap bitmap) {
                 if (Build.VERSION.SDK_INT < Build.VERSION_CODES.HONEYCOMB_MR1) {
@@ -888,23 +901,12 @@ public class CoverFlowView<T extends CoverFlowAdapter> extends ViewGroup {
         }
 
         private int getCacheSize(Context context) {
-            // According to the phone memory, set a proper cache size for LRU
-            // cache
-            // dynamically.
             final ActivityManager am = (ActivityManager) context
                     .getSystemService(Context.ACTIVITY_SERVICE);
             final int memClass = am.getMemoryClass();
+            // Target ~5% of the available heap.
+            int cacheSize = 1024 * 1024 * memClass / 21;
 
-            int cacheSize;
-            if (memClass <= 24) {
-                cacheSize = (memClass << 20) / 24;
-            } else if (memClass <= 36) {
-                cacheSize = (memClass << 20) / 18;
-            } else if (memClass <= 48) {
-                cacheSize = (memClass << 20) / 12;
-            } else {
-                cacheSize = (memClass << 20) >> 3;
-            }
             Log.e(VIEW_LOG_TAG, "cacheSize == " + cacheSize);
             return cacheSize;
         }
