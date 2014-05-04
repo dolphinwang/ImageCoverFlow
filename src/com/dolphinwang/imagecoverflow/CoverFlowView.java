@@ -33,6 +33,7 @@ import android.util.Log;
 import android.util.SparseArray;
 import android.view.MotionEvent;
 import android.view.VelocityTracker;
+import android.view.ViewConfiguration;
 import android.view.ViewGroup;
 import android.view.animation.AnimationUtils;
 
@@ -74,6 +75,9 @@ public class CoverFlowView<T extends CoverFlowAdapter> extends ViewGroup {
     private static final float MOVE_SPEED_MULTIPLE = 1;
     private static final float MAX_SPEED = 6.0f;
     private static final float FRICTION = 10.0f;
+
+    private static final int LONG_CLICK_DELAY = ViewConfiguration
+            .getLongPressTimeout();
     /**** static field ****/
 
     private RecycleBin mRecycler;
@@ -131,6 +135,11 @@ public class CoverFlowView<T extends CoverFlowAdapter> extends ViewGroup {
 
     private CoverFlowListener<T> mCoverFlowListener;
 
+    private TopImageLongClickListener mLongClickListener;
+    private LongClickRunnable mLongClickRunnable;
+    private boolean mLongClickPosted;
+    private boolean mLongClickTriggled;
+
     /**
      * Record origin width and height of images
      */
@@ -168,6 +177,8 @@ public class CoverFlowView<T extends CoverFlowAdapter> extends ViewGroup {
 
         reflectEnable = a.getBoolean(
                 R.styleable.ImageCoverFlowView_enableReflection, false);
+        topImageClickEnable = a.getBoolean(
+                R.styleable.ImageCoverFlowView_topImageClickEnable, true);
         if (reflectEnable) {
             reflectHeightFraction = a.getFraction(
                     R.styleable.ImageCoverFlowView_reflectionHeight, 100, 0,
@@ -422,8 +433,6 @@ public class CoverFlowView<T extends CoverFlowAdapter> extends ViewGroup {
     /**
      * <ul>
      * <li>对bitmap进行伪3d变换</li>
-     * <li>如果子类重写了这个函数，则可以对图片的3d变换进行自定义</li>
-     * <li>若子类重写了这个函数，可以调用父类函数在标准变换的基础上面做自定义变换</li>
      * </ul>
      * 
      * @param childTransfromMatrix
@@ -541,9 +550,7 @@ public class CoverFlowView<T extends CoverFlowAdapter> extends ViewGroup {
         mTouchRect.right = mTouchRect.left + childWidth;
         mTouchRect.bottom = mTouchRect.top + childHeight;
 
-        Log.e(VIEW_LOG_TAG, "left==>" + mTouchRect.left + " top==>"
-                + mTouchRect.top + " right==>" + mTouchRect.right
-                + " bottom==>" + mTouchRect);
+        Log.e(VIEW_LOG_TAG, "rect==>" + mTouchRect);
 
         if (mCoverFlowListener != null) {
             mCoverFlowListener.imageOnTop(this, position, mTouchRect.left,
@@ -556,6 +563,8 @@ public class CoverFlowView<T extends CoverFlowAdapter> extends ViewGroup {
         int action = event.getAction();
         switch (action) {
         case MotionEvent.ACTION_DOWN:
+            stopLongClick();
+            triggleLongClick(event.getX(), event.getY());
             touchBegan(event);
             return true;
         case MotionEvent.ACTION_MOVE:
@@ -563,10 +572,29 @@ public class CoverFlowView<T extends CoverFlowAdapter> extends ViewGroup {
             return true;
         case MotionEvent.ACTION_UP:
             touchEnded(event);
+            stopLongClick();
             return true;
         }
 
         return false;
+    }
+
+    private void triggleLongClick(float x, float y) {
+        if (mTouchRect.contains(x, y) && mLongClickListener != null
+                && topImageClickEnable && !mLongClickPosted) {
+            final int actuallyPosition = getActuallyPosition((int) mOffset);
+
+            mLongClickRunnable.setPosition(actuallyPosition);
+            postDelayed(mLongClickRunnable, LONG_CLICK_DELAY);
+        }
+    }
+
+    private void stopLongClick() {
+        if (mLongClickRunnable != null) {
+            removeCallbacks(mLongClickRunnable);
+            mLongClickPosted = false;
+            mLongClickTriggled = false;
+        }
     }
 
     private void touchBegan(MotionEvent event) {
@@ -599,6 +627,8 @@ public class CoverFlowView<T extends CoverFlowAdapter> extends ViewGroup {
                 return;
 
             mTouchMoved = true;
+
+            stopLongClick();
         }
 
         mOffset = mStartOffset + mTouchStartPos - pos;
@@ -632,9 +662,11 @@ public class CoverFlowView<T extends CoverFlowAdapter> extends ViewGroup {
                     " touch ==>" + event.getX() + " , " + event.getY());
             if (mTouchRect != null) {
                 if (mTouchRect.contains(event.getX(), event.getY())
-                        && mCoverFlowListener != null && topImageClickEnable) {
-                    mCoverFlowListener.topImageClicked(this,
-                            getActuallyPosition((int) mOffset));
+                        && mCoverFlowListener != null && topImageClickEnable
+                        && !mLongClickTriggled) {
+                    final int actuallyPosition = getActuallyPosition((int) mOffset);
+
+                    mCoverFlowListener.topImageClicked(this, actuallyPosition);
                 }
             }
         }
@@ -855,6 +887,34 @@ public class CoverFlowView<T extends CoverFlowAdapter> extends ViewGroup {
         topImageClickEnable = true;
     }
 
+    public void setTopImageLongClickListener(TopImageLongClickListener listener) {
+        mLongClickListener = listener;
+
+        if (listener == null) {
+            mLongClickRunnable = null;
+        } else {
+            if (mLongClickRunnable == null) {
+                mLongClickRunnable = new LongClickRunnable();
+            }
+        }
+    }
+
+    private class LongClickRunnable implements Runnable {
+        private int position;
+
+        public void setPosition(int position) {
+            this.position = position;
+        }
+
+        @Override
+        public void run() {
+            if (mLongClickListener != null) {
+                mLongClickListener.onLongClick(position);
+                mLongClickTriggled = true;
+            }
+        }
+    }
+
     class RecycleBin {
 
         @SuppressLint("NewApi")
@@ -910,6 +970,10 @@ public class CoverFlowView<T extends CoverFlowAdapter> extends ViewGroup {
             Log.e(VIEW_LOG_TAG, "cacheSize == " + cacheSize);
             return cacheSize;
         }
+    }
+
+    public static interface TopImageLongClickListener {
+        public void onLongClick(int position);
     }
 
     public static interface CoverFlowListener<V extends CoverFlowAdapter> {
