@@ -140,6 +140,8 @@ public class CoverFlowView<T extends CoverFlowAdapter> extends ViewGroup {
     private boolean mLongClickPosted;
     private boolean mLongClickTriggled;
 
+    private int mTopImageIndex;
+
     /**
      * Record origin width and height of images
      */
@@ -258,8 +260,10 @@ public class CoverFlowView<T extends CoverFlowAdapter> extends ViewGroup {
 
     private void resetList() {
         removeAllViewsInLayout();
-        if (mRecycler != null)
+        if (mRecycler != null) {
+
             mRecycler.clear();
+        }
 
         mChildHeight = 0;
 
@@ -532,6 +536,7 @@ public class CoverFlowView<T extends CoverFlowAdapter> extends ViewGroup {
     }
 
     private void imageOnTop(int position) {
+        mTopImageIndex = position;
 
         final int[] wAndh = mImageRecorder.get(position);
 
@@ -582,7 +587,7 @@ public class CoverFlowView<T extends CoverFlowAdapter> extends ViewGroup {
     private void triggleLongClick(float x, float y) {
         if (mTouchRect.contains(x, y) && mLongClickListener != null
                 && topImageClickEnable && !mLongClickPosted) {
-            final int actuallyPosition = getActuallyPosition((int) mOffset);
+            final int actuallyPosition = mTopImageIndex;
 
             mLongClickRunnable.setPosition(actuallyPosition);
             postDelayed(mLongClickRunnable, LONG_CLICK_DELAY);
@@ -664,7 +669,7 @@ public class CoverFlowView<T extends CoverFlowAdapter> extends ViewGroup {
                 if (mTouchRect.contains(event.getX(), event.getY())
                         && mCoverFlowListener != null && topImageClickEnable
                         && !mLongClickTriggled) {
-                    final int actuallyPosition = getActuallyPosition((int) mOffset);
+                    final int actuallyPosition = mTopImageIndex;
 
                     mCoverFlowListener.topImageClicked(this, actuallyPosition);
                 }
@@ -757,16 +762,8 @@ public class CoverFlowView<T extends CoverFlowAdapter> extends ViewGroup {
 
         // If bitmap want to invalidate is showing on screen
         // call view to redraw
-        final float offset = mOffset;
-        int mid = (int) Math.floor(offset + 0.5);
-
-        int rightChild = (mVisibleChildCount % 2 == 0) ? (mVisibleChildCount >> 1) - 1
-                : mVisibleChildCount >> 1;
-        int leftChild = mVisibleChildCount >> 1;
-        int startPos = mid - leftChild;
-        int endPos = mid + rightChild;
-        if (position >= getActuallyPosition(startPos)
-                && position <= getActuallyPosition(endPos)) {
+        if (position >= mTopImageIndex - VISIBLE_VIEWS
+                && position <= mTopImageIndex + VISIBLE_VIEWS) {
             invalidate();
         }
     }
@@ -964,8 +961,8 @@ public class CoverFlowView<T extends CoverFlowAdapter> extends ViewGroup {
             final ActivityManager am = (ActivityManager) context
                     .getSystemService(Context.ACTIVITY_SERVICE);
             final int memClass = am.getMemoryClass();
-            // Target ~5% of the available heap.
-            int cacheSize = 1024 * 1024 * memClass / 21;
+            // Target ~15% of the available heap.
+            int cacheSize = 1024 * 1024 * memClass / 7;
 
             Log.e(VIEW_LOG_TAG, "cacheSize == " + cacheSize);
             return cacheSize;
