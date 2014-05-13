@@ -87,6 +87,7 @@ How to use：
                     }
                 });
 
+### Users can use method setSelection to show image of right position on top.
 
 If u write a class extends CoverFlowView:
 -----------------------------------
