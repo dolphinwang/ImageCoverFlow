@@ -33,9 +33,11 @@ import android.util.Log;
 import android.util.SparseArray;
 import android.view.MotionEvent;
 import android.view.VelocityTracker;
+import android.view.View;
 import android.view.ViewConfiguration;
-import android.view.ViewGroup;
+import android.view.animation.AccelerateDecelerateInterpolator;
 import android.view.animation.AnimationUtils;
+import android.widget.Scroller;
 
 /**
  * 
@@ -43,7 +45,7 @@ import android.view.animation.AnimationUtils;
  * @time 2013-11-29
  * 
  */
-public class CoverFlowView<T extends CoverFlowAdapter> extends ViewGroup {
+public class CoverFlowView<T extends CoverFlowAdapter> extends View {
 
     public enum CoverFlowGravity {
         TOP, BOTTOM, CENTER_VERTICAL;
@@ -54,6 +56,8 @@ public class CoverFlowView<T extends CoverFlowAdapter> extends ViewGroup {
     }
 
     /**** static field ****/
+    private static final int DURATION = 200;
+
     protected final int INVALID_POSITION = -1;
 
     // Used to indicate a no preference for a position type.
@@ -142,6 +146,8 @@ public class CoverFlowView<T extends CoverFlowAdapter> extends ViewGroup {
 
     private int mTopImageIndex;
 
+    private Scroller mScroller;
+
     /**
      * Record origin width and height of images
      */
@@ -208,7 +214,8 @@ public class CoverFlowView<T extends CoverFlowAdapter> extends ViewGroup {
     }
 
     private void init() {
-        this.setWillNotDraw(false);
+        setWillNotDraw(false);
+        setClickable(true);
 
         mChildTransfromMatrix = new Matrix();
 
@@ -224,6 +231,9 @@ public class CoverFlowView<T extends CoverFlowAdapter> extends ViewGroup {
 
         mDrawFilter = new PaintFlagsDrawFilter(0, Paint.ANTI_ALIAS_FLAG
                 | Paint.FILTER_BITMAP_FLAG);
+
+        mScroller = new Scroller(getContext(),
+                new AccelerateDecelerateInterpolator());
     }
 
     /**
@@ -259,7 +269,6 @@ public class CoverFlowView<T extends CoverFlowAdapter> extends ViewGroup {
     }
 
     private void resetList() {
-        removeAllViewsInLayout();
         if (mRecycler != null) {
 
             mRecycler.clear();
@@ -413,6 +422,7 @@ public class CoverFlowView<T extends CoverFlowAdapter> extends ViewGroup {
     }
 
     protected final void drawChild(Canvas canvas, int position, float offset) {
+
         int actuallyPosition = getActuallyPosition(position);
         final Bitmap child = obtainImage(actuallyPosition);
 
@@ -565,9 +575,17 @@ public class CoverFlowView<T extends CoverFlowAdapter> extends ViewGroup {
 
     @Override
     public boolean onTouchEvent(MotionEvent event) {
+        if (getParent() != null) {
+            getParent().requestDisallowInterceptTouchEvent(true);
+        }
+
         int action = event.getAction();
         switch (action) {
         case MotionEvent.ACTION_DOWN:
+            if (mScroller.computeScrollOffset()) {
+                mScroller.abortAnimation();
+                invalidate();
+            }
             stopLongClick();
             triggleLongClick(event.getX(), event.getY());
             touchBegan(event);
@@ -646,7 +664,7 @@ public class CoverFlowView<T extends CoverFlowAdapter> extends ViewGroup {
         float pos = (event.getX() / mWidth) * MOVE_POS_MULTIPLE - 5;
         pos /= 2;
 
-        if (mTouchMoved) {
+        if (mTouchMoved || (mOffset - Math.floor(mOffset)) != 0) {
             mStartOffset += mTouchStartPos - pos;
             mOffset = mStartOffset;
 
@@ -882,6 +900,47 @@ public class CoverFlowView<T extends CoverFlowAdapter> extends ViewGroup {
 
     public void enableTopImageClick() {
         topImageClickEnable = true;
+    }
+
+    public void setSelection(int position) {
+        final int max = mAdapter.getCount();
+        if (position < 0 || position >= max) {
+            throw new IllegalArgumentException(
+                    "Position want to select can not less than 0 or larger than max of adapter provide!");
+        }
+
+        if (mTopImageIndex != position) {
+            if (mScroller.computeScrollOffset()) {
+                mScroller.abortAnimation();
+            }
+
+            final int from = (int) (mOffset * 100);
+            final int disX = (int) ((position - VISIBLE_VIEWS) * 100) - from;
+            mScroller.startScroll(
+                    from,
+                    0,
+                    disX,
+                    0,
+                    DURATION
+                            * Math.min(
+                                    Math.abs(position + max - mTopImageIndex),
+                                    Math.abs(position - mTopImageIndex)));
+
+            invalidate();
+        }
+    }
+
+    @Override
+    public void computeScroll() {
+        super.computeScroll();
+
+        if (mScroller.computeScrollOffset()) {
+            final int currX = mScroller.getCurrX();
+
+            mOffset = (float) currX / 100;
+
+            invalidate();
+        }
     }
 
     public void setTopImageLongClickListener(TopImageLongClickListener listener) {
