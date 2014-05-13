@@ -22,3 +22,5 @@ supported:
 
 8. Image cache.(It has already achieve an image cache, but i propose users to achieve an
    cache outside.)
+
+9. Quick selection.(Use method setSelection)
