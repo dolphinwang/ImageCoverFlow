@@ -6,13 +6,14 @@
         <attr name="enableReflection" format="boolean" />
         <attr name="reflectionHeight" format="fraction" />
         <attr name="reflectionGap" format="dimension" />
-        <attr name="reflectionShaderEnable" format="boolean"></attr>
-        <attr name="coverflowGravity">
+        <attr name="reflectionShaderEnable" format="boolean" />
+        <attr name="topImageClickEnable" format="boolean" />
+        <attr name="coverflowGravity" format="enum">
             <enum name="top" value="0" />
             <enum name="bottom" value="1" />
             <enum name="center_vertical" value="2" />
         </attr>
-        <attr name="coverflowLayoutMode">
+        <attr name="coverflowLayoutMode" format="enum">
             <enum name="match_parent" value="0"></enum>
             <enum name="wrap_content" value="1"></enum>
         </attr>
