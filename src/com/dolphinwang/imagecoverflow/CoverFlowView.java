@@ -104,7 +104,8 @@ public class CoverFlowView<T extends CoverFlowAdapter> extends View {
 
     private PaintFlagsDrawFilter mDrawFilter;
 
-    private Matrix mChildTransfromMatrix;
+    private Matrix mChildTransfromer;
+    private Matrix mReflectionTransfromer;
 
     private Paint mDrawChildPaint;
 
@@ -129,13 +130,12 @@ public class CoverFlowView<T extends CoverFlowAdapter> extends View {
 
     private int mChildHeight;
     private int mChildTranslateY;
+    private int mReflectionTranslateY;
 
-    private boolean reflectEnable = false;
-    private boolean reflectShaderEnable = true;
     private float reflectHeightFraction;
     private int reflectGap;
 
-    private boolean topImageClickEnable;
+    private boolean topImageClickEnable = true;
 
     private CoverFlowListener<T> mCoverFlowListener;
 
@@ -183,24 +183,14 @@ public class CoverFlowView<T extends CoverFlowAdapter> extends View {
 
         VISIBLE_VIEWS = totalVisibleChildren >> 1;
 
-        reflectEnable = a.getBoolean(
-                R.styleable.ImageCoverFlowView_enableReflection, false);
-        topImageClickEnable = a.getBoolean(
-                R.styleable.ImageCoverFlowView_topImageClickEnable, true);
-        if (reflectEnable) {
-            reflectHeightFraction = a.getFraction(
-                    R.styleable.ImageCoverFlowView_reflectionHeight, 100, 0,
-                    0.3f);
-            if (reflectHeightFraction > 100)
-                reflectHeightFraction = 100;
-            reflectHeightFraction /= 100;
-            reflectGap = a.getDimensionPixelSize(
-                    R.styleable.ImageCoverFlowView_reflectionGap, 0);
-            reflectShaderEnable = a
-                    .getBoolean(
-                            R.styleable.ImageCoverFlowView_reflectionShaderEnable,
-                            true);
+        reflectHeightFraction = a.getFraction(
+                R.styleable.ImageCoverFlowView_reflectionHeight, 100, 0, 0.0f);
+        if (reflectHeightFraction > 100) {
+            reflectHeightFraction = 100;
         }
+        reflectHeightFraction /= 100;
+        reflectGap = a.getDimensionPixelSize(
+                R.styleable.ImageCoverFlowView_reflectionGap, 0);
 
         mGravity = CoverFlowGravity.values()[a.getInt(
                 R.styleable.ImageCoverFlowView_coverflowGravity,
@@ -217,7 +207,8 @@ public class CoverFlowView<T extends CoverFlowAdapter> extends View {
         setWillNotDraw(false);
         setClickable(true);
 
-        mChildTransfromMatrix = new Matrix();
+        mChildTransfromer = new Matrix();
+        mReflectionTransfromer = new Matrix();
 
         mTouchRect = new RectF();
 
@@ -302,12 +293,16 @@ public class CoverFlowView<T extends CoverFlowAdapter> extends View {
      */
     @Override
     protected void onMeasure(int widthMeasureSpec, int heightMeasureSpec) {
+        super.onMeasure(widthMeasureSpec, heightMeasureSpec);
+
+        if (mAdapter == null) {
+            return;
+        }
+
         mCoverFlowPadding.left = getPaddingLeft();
         mCoverFlowPadding.right = getPaddingRight();
         mCoverFlowPadding.top = getPaddingTop();
         mCoverFlowPadding.bottom = getPaddingBottom();
-
-        super.onMeasure(widthMeasureSpec, heightMeasureSpec);
 
         int heightMode = MeasureSpec.getMode(heightMeasureSpec);
         int widthSize = MeasureSpec.getSize(widthMeasureSpec);
@@ -318,20 +313,22 @@ public class CoverFlowView<T extends CoverFlowAdapter> extends View {
         int avaiblableHeight = heightSize - mCoverFlowPadding.top
                 - mCoverFlowPadding.bottom;
 
-        int maxChildHeight = 0;
-
+        int maxChildTotalHeight = 0;
         for (int i = 0; i < visibleCount; ++i) {
-            int childHeight = obtainImage(i).getHeight();
+            Bitmap child = mAdapter.getImage(i);
+            final int childHeight = child.getHeight();
+            final int childTotalHeight = (int) (childHeight + childHeight
+                    * reflectHeightFraction + reflectGap);
 
-            maxChildHeight = (maxChildHeight < childHeight) ? childHeight
-                    : maxChildHeight;
+            maxChildTotalHeight = (maxChildTotalHeight < childTotalHeight) ? childTotalHeight
+                    : maxChildTotalHeight;
         }
 
         if (heightMode == MeasureSpec.EXACTLY
                 || heightMode == MeasureSpec.AT_MOST) {
             // if height which parent provided is less than child need, scale
             // child height to parent provide
-            if (avaiblableHeight < maxChildHeight) {
+            if (avaiblableHeight < maxChildTotalHeight) {
                 mChildHeight = avaiblableHeight;
             } else {
                 // if larger than, depends on layout mode
@@ -342,7 +339,7 @@ public class CoverFlowView<T extends CoverFlowAdapter> extends View {
                     // if layout mode is wrap_content, keep child's original
                     // height
                 } else if (mLayoutMode == CoverFlowLayoutMode.WRAP_CONTENT) {
-                    mChildHeight = maxChildHeight;
+                    mChildHeight = maxChildTotalHeight;
 
                     // adjust parent's height
                     if (heightMode == MeasureSpec.AT_MOST) {
@@ -356,7 +353,7 @@ public class CoverFlowView<T extends CoverFlowAdapter> extends View {
             if (mLayoutMode == CoverFlowLayoutMode.MATCH_PARENT) {
                 mChildHeight = avaiblableHeight;
             } else if (mLayoutMode == CoverFlowLayoutMode.WRAP_CONTENT) {
-                mChildHeight = maxChildHeight;
+                mChildHeight = maxChildTotalHeight;
 
                 // adjust parent's height
                 heightSize = mChildHeight + mCoverFlowPadding.top
@@ -364,7 +361,7 @@ public class CoverFlowView<T extends CoverFlowAdapter> extends View {
             }
         }
 
-        // 根据gravity调整y轴位移
+        // Adjust movement in y-axis according to gravity
         if (mGravity == CoverFlowGravity.CENTER_VERTICAL) {
             mChildTranslateY = (heightSize >> 1) - (mChildHeight >> 1);
         } else if (mGravity == CoverFlowGravity.TOP) {
@@ -373,6 +370,8 @@ public class CoverFlowView<T extends CoverFlowAdapter> extends View {
             mChildTranslateY = heightSize - mCoverFlowPadding.bottom
                     - mChildHeight;
         }
+        mReflectionTranslateY = (int) (mChildTranslateY + mChildHeight - mChildHeight
+                * reflectHeightFraction);
 
         setMeasuredDimension(widthSize, heightSize);
         mVisibleChildCount = visibleCount;
@@ -390,6 +389,11 @@ public class CoverFlowView<T extends CoverFlowAdapter> extends View {
 
     @Override
     protected void onDraw(Canvas canvas) {
+
+        if (mAdapter == null) {
+            super.onDraw(canvas);
+            return;
+        }
 
         canvas.setDrawFilter(mDrawFilter);
 
@@ -424,7 +428,8 @@ public class CoverFlowView<T extends CoverFlowAdapter> extends View {
     protected final void drawChild(Canvas canvas, int position, float offset) {
 
         int actuallyPosition = getActuallyPosition(position);
-        final Bitmap child = obtainImage(actuallyPosition);
+        final Bitmap child = mAdapter.getImage(actuallyPosition);
+        final Bitmap reflection = obtainReflection(actuallyPosition, child);
 
         int[] wAndh = mImageRecorder.get(actuallyPosition);
         if (wAndh == null) {
@@ -437,10 +442,13 @@ public class CoverFlowView<T extends CoverFlowAdapter> extends View {
 
         if (child != null && !child.isRecycled() && canvas != null) {
 
-            makeChildTransfromMatrix(mChildTransfromMatrix, mDrawChildPaint,
-                    child, position, offset);
+            makeChildTransfromer(child, position, offset);
+            canvas.drawBitmap(child, mChildTransfromer, mDrawChildPaint);
+            if (reflection != null) {
 
-            canvas.drawBitmap(child, mChildTransfromMatrix, mDrawChildPaint);
+                canvas.drawBitmap(reflection, mReflectionTransfromer,
+                        mDrawChildPaint);
+            }
         }
     }
 
@@ -455,15 +463,20 @@ public class CoverFlowView<T extends CoverFlowAdapter> extends View {
      * @param position
      * @param offset
      */
-    private void makeChildTransfromMatrix(Matrix childTransfromMatrix,
-            Paint mDrawChildPaint, Bitmap child, int position, float offset) {
-        mChildTransfromMatrix.reset();
+    private void makeChildTransfromer(Bitmap child, int position, float offset) {
+        mChildTransfromer.reset();
+        mReflectionTransfromer.reset();
 
         float scale = 1 - Math.abs(offset) * CARD_SCALE;
         // 延x轴移动的距离应该根据center图片决定
         float translateX = 0;
 
-        final float originalChildHeightScale = (float) mChildHeight
+        final int originalChildHeight = (int) (mChildHeight - mChildHeight
+                * reflectHeightFraction - reflectGap);
+        final int childTotalHeight = (int) (child.getHeight()
+                + child.getHeight() * reflectHeightFraction + reflectGap);
+
+        final float originalChildHeightScale = (float) originalChildHeight
                 / child.getHeight();
         final float childHeightScale = originalChildHeightScale * scale;
         final int childWidth = (int) (child.getWidth() * childHeightScale);
@@ -481,37 +494,46 @@ public class CoverFlowView<T extends CoverFlowAdapter> extends View {
                     * (VISIBLE_VIEWS - offset) - childWidth
                     - mCoverFlowPadding.right;
 
-        float alpha = (float) 255 - Math.abs(offset) * STANDARD_ALPHA;
+        float alpha = (float) 254 - Math.abs(offset) * STANDARD_ALPHA;
 
         if (alpha < 0) {
             alpha = 0;
-        } else if (alpha > 255) {
-            alpha = 255;
+        } else if (alpha > 254) {
+            alpha = 254;
         }
 
         mDrawChildPaint.setAlpha((int) alpha);
 
-        mChildTransfromMatrix.preTranslate(0, -(child.getHeight() >> 1));
+        mChildTransfromer.preTranslate(0, -(childTotalHeight >> 1));
         // matrix中的postxxx为顺序执行，相反prexxx为倒叙执行
-        mChildTransfromMatrix.postScale(childHeightScale, childHeightScale);
+        mChildTransfromer.postScale(childHeightScale, childHeightScale);
 
-        // if actually child height is larger or less than original child height
+        // if actually child height is larger or smaller than original child
+        // height
         // need to change translate distance of y-axis
         float adjustedChildTranslateY = 0;
         if (childHeightScale != 1) {
-            adjustedChildTranslateY = (mChildHeight - child.getHeight()) >> 1;
+            adjustedChildTranslateY = (mChildHeight - childTotalHeight) >> 1;
         }
 
-        mChildTransfromMatrix.postTranslate(translateX, mChildTranslateY
+        mChildTransfromer.postTranslate(translateX, mChildTranslateY
                 + adjustedChildTranslateY);
 
         // Log.d(VIEW_LOG_TAG, "position= " + position + " mChildTranslateY= "
         // + mChildTranslateY + adjustedChildTranslateY);
 
-        getCustomTransformMatrix(mChildTransfromMatrix, mDrawChildPaint, child,
+        getCustomTransformMatrix(mChildTransfromer, mDrawChildPaint, child,
                 position, offset);
 
-        mChildTransfromMatrix.postTranslate(0, (child.getHeight() >> 1));
+        mChildTransfromer.postTranslate(0, (childTotalHeight >> 1));
+
+        mReflectionTransfromer.preTranslate(0, -(childTotalHeight >> 1));
+        mReflectionTransfromer.postScale(childHeightScale, childHeightScale);
+        mReflectionTransfromer.postTranslate(translateX, mReflectionTranslateY
+                * scale + adjustedChildTranslateY);
+        getCustomTransformMatrix(mReflectionTransfromer, mDrawChildPaint,
+                child, position, offset);
+        mReflectionTransfromer.postTranslate(0, (childTotalHeight >> 1));
     }
 
     /**
@@ -530,7 +552,7 @@ public class CoverFlowView<T extends CoverFlowAdapter> extends View {
      * @param offset
      *            offset to center(zero)
      */
-    protected void getCustomTransformMatrix(Matrix childTransfromMatrix,
+    protected void getCustomTransformMatrix(Matrix transfromer,
             Paint mDrawChildPaint, Bitmap child, int position, float offset) {
 
         /** example code to make image y-axis rotation **/
@@ -550,20 +572,18 @@ public class CoverFlowView<T extends CoverFlowAdapter> extends View {
 
         final int[] wAndh = mImageRecorder.get(position);
 
-        final int tempReflectHeight = (int) (wAndh[1] * reflectHeightFraction);
-        final float childScale = (float) mChildHeight
-                / (wAndh[1] + tempReflectHeight + reflectGap);
-        final int childHeight = (int) (mChildHeight * childScale - childScale
-                * tempReflectHeight - childScale * reflectGap);
-        final int childWidth = (int) (childScale * wAndh[0]);
+        final int heightInView = (int) (mChildHeight - mChildHeight
+                * reflectHeightFraction - reflectGap);
+        final float scale = (float) heightInView / wAndh[1];
+        final int widthInView = (int) (wAndh[0] * scale);
 
-        Log.e(VIEW_LOG_TAG, "height ==>" + childHeight + " width ==>"
-                + childWidth);
+        Log.e(VIEW_LOG_TAG, "height ==>" + heightInView + " width ==>"
+                + widthInView);
 
-        mTouchRect.left = (mWidth >> 1) - (childWidth >> 1);
+        mTouchRect.left = (mWidth >> 1) - (widthInView >> 1);
         mTouchRect.top = mChildTranslateY;
-        mTouchRect.right = mTouchRect.left + childWidth;
-        mTouchRect.bottom = mTouchRect.top + childHeight;
+        mTouchRect.right = mTouchRect.left + widthInView;
+        mTouchRect.bottom = mTouchRect.top + heightInView;
 
         Log.e(VIEW_LOG_TAG, "rect==>" + mTouchRect);
 
@@ -812,44 +832,26 @@ public class CoverFlowView<T extends CoverFlowAdapter> extends View {
         return position;
     }
 
-    private Bitmap obtainImage(int position) {
-        Bitmap bitmap = mRecycler.getCachedBitmap(position);
-
-        if (bitmap == null || bitmap.isRecycled()) {
-            bitmap = mAdapter.getImage(position);
-
-            if (reflectEnable) {
-                Bitmap bitmapWithReflect = BitmapUtils.createReflectedBitmap(
-                        bitmap, reflectHeightFraction, reflectGap,
-                        reflectShaderEnable);
-
-                if (bitmapWithReflect != null) {
-                    mRecycler.addBitmap2Cache(position, bitmapWithReflect);
-
-                    return bitmapWithReflect;
-                } else {
-                    mRecycler.addBitmap2Cache(position, bitmap);
-                }
-            } else {
-
-                mRecycler.addBitmap2Cache(position, bitmap);
-
-            }
-
+    private Bitmap obtainReflection(int position, Bitmap src) {
+        if (reflectHeightFraction <= 0) {
+            return null;
         }
 
-        return bitmap;
-    }
+        Bitmap reflection = mRecycler.getCachedBitmap(position);
 
-    /**
-     * user is better to set a density of screen to make picture's movement more
-     * comfortable
-     * 
-     * @param density
-     */
-    public void setScreenDensity(int density) {
-        float temp = MOVE_POS_MULTIPLE * density;
-        MOVE_POS_MULTIPLE = temp;
+        if (reflection == null || reflection.isRecycled()) {
+
+            reflection = BitmapUtils.createReflectedBitmap(src,
+                    reflectHeightFraction);
+
+            if (reflection != null) {
+                mRecycler.addBitmap2Cache(position, reflection);
+
+                return reflection;
+            }
+        }
+
+        return reflection;
     }
 
     public void setVisibleImage(int count) {
@@ -870,17 +872,9 @@ public class CoverFlowView<T extends CoverFlowAdapter> extends View {
         mLayoutMode = mode;
     }
 
-    public void enableReflection(boolean enable) {
-        this.reflectEnable = enable;
-    }
-
-    public void enableReflectionShader(boolean enable) {
-        reflectShaderEnable = enable;
-    }
-
     public void setReflectionHeight(int fraction) {
         if (fraction < 0)
-            fraction = 30;
+            fraction = 0;
         else if (fraction > 100)
             fraction = 100;
 
@@ -1020,8 +1014,8 @@ public class CoverFlowView<T extends CoverFlowAdapter> extends View {
             final ActivityManager am = (ActivityManager) context
                     .getSystemService(Context.ACTIVITY_SERVICE);
             final int memClass = am.getMemoryClass();
-            // Target ~15% of the available heap.
-            int cacheSize = 1024 * 1024 * memClass / 7;
+            // Target ~5% of the available heap.
+            int cacheSize = 1024 * 1024 * memClass / 21;
 
             Log.e(VIEW_LOG_TAG, "cacheSize == " + cacheSize);
             return cacheSize;
