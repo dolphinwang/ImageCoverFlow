@@ -15,6 +15,8 @@
  */
 package com.dolphinwang.imagecoverflow;
 
+import java.util.ArrayList;
+
 import android.annotation.SuppressLint;
 import android.app.ActivityManager;
 import android.content.Context;
@@ -149,6 +151,16 @@ public class CoverFlowView<T extends CoverFlowAdapter> extends View {
     private Scroller mScroller;
 
     /**
+     * Indicator whether view is drawing
+     */
+    private boolean mDrawing;
+
+    /**
+     * To store reflections need to remove
+     */
+    private ArrayList<Integer> mRemoveReflectionPendingArray;
+
+    /**
      * Record origin width and height of images
      */
     private SparseArray<int[]> mImageRecorder;
@@ -225,6 +237,8 @@ public class CoverFlowView<T extends CoverFlowAdapter> extends View {
 
         mScroller = new Scroller(getContext(),
                 new AccelerateDecelerateInterpolator());
+
+        mRemoveReflectionPendingArray = new ArrayList<Integer>();
     }
 
     /**
@@ -395,6 +409,8 @@ public class CoverFlowView<T extends CoverFlowAdapter> extends View {
             return;
         }
 
+        mDrawing = true;
+
         canvas.setDrawFilter(mDrawFilter);
 
         final float offset = mOffset;
@@ -422,12 +438,21 @@ public class CoverFlowView<T extends CoverFlowAdapter> extends View {
             mLastOffset = (int) offset;
         }
 
+        mDrawing = false;
+        final int removeCount = mRemoveReflectionPendingArray.size();
+        for (i = 0; i < removeCount; i++) {
+            final int removePosition = mRemoveReflectionPendingArray.get(i);
+            mRecycler.removeCachedBitmap(removePosition);
+        }
+        mRemoveReflectionPendingArray.clear();
+
         super.onDraw(canvas);
     }
 
     protected final void drawChild(Canvas canvas, int position, float offset) {
 
         int actuallyPosition = getActuallyPosition(position);
+
         final Bitmap child = mAdapter.getImage(actuallyPosition);
         final Bitmap reflection = obtainReflection(actuallyPosition, child);
 
@@ -441,7 +466,6 @@ public class CoverFlowView<T extends CoverFlowAdapter> extends View {
         }
 
         if (child != null && !child.isRecycled() && canvas != null) {
-
             makeChildTransfromer(child, position, offset);
             canvas.drawBitmap(child, mChildTransfromer, mDrawChildPaint);
             if (reflection != null) {
@@ -796,7 +820,13 @@ public class CoverFlowView<T extends CoverFlowAdapter> extends View {
             return;
         }
 
-        mRecycler.removeCachedBitmap(position);
+        if (!mDrawing) {
+            mRecycler.removeCachedBitmap(position);
+        } else {
+            if (!mRemoveReflectionPendingArray.contains(position)) {
+                mRemoveReflectionPendingArray.add(position);
+            }
+        }
 
         // If bitmap want to invalidate is showing on screen
         // call view to redraw
@@ -840,6 +870,7 @@ public class CoverFlowView<T extends CoverFlowAdapter> extends View {
         Bitmap reflection = mRecycler.getCachedBitmap(position);
 
         if (reflection == null || reflection.isRecycled()) {
+            mRecycler.removeCachedBitmap(position);
 
             reflection = BitmapUtils.createReflectedBitmap(src,
                     reflectHeightFraction);
@@ -998,12 +1029,12 @@ public class CoverFlowView<T extends CoverFlowAdapter> extends View {
             Runtime.getRuntime().gc();
         }
 
-        public void removeCachedBitmap(int position) {
+        public Bitmap removeCachedBitmap(int position) {
             if (position < 0 || position >= bitmapCache.size()) {
-                return;
+                return null;
             }
 
-            bitmapCache.remove(position);
+            return bitmapCache.remove(position);
         }
 
         public void clear() {
