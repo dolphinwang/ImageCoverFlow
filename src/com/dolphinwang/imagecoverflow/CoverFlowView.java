@@ -447,6 +447,8 @@ public class CoverFlowView<T extends CoverFlowAdapter> extends View {
         mRemoveReflectionPendingArray.clear();
 
         super.onDraw(canvas);
+		
+		mCoverFlowListener.invalidationCompleted();		
     }
 
     protected final void drawChild(Canvas canvas, int position, float offset) {
@@ -600,7 +602,9 @@ public class CoverFlowView<T extends CoverFlowAdapter> extends View {
                 * reflectHeightFraction - reflectGap);
         final float scale = (float) heightInView / wAndh[1];
         final int widthInView = (int) (wAndh[0] * scale);
-
+		//replace this with your view size in order to get correctly calculated rectangle
+		heightInView = 652;
+		widthInView = 1080 / 2;
         Log.e(VIEW_LOG_TAG, "height ==>" + heightInView + " width ==>"
                 + widthInView);
 
@@ -1063,5 +1067,7 @@ public class CoverFlowView<T extends CoverFlowAdapter> extends View {
 
         public void topImageClicked(final CoverFlowView<V> coverFlowView,
                 int position);
+				
+		public void invalidationCompleted();
     }
 }
