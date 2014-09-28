@@ -492,8 +492,15 @@ public class CoverFlowView<T extends CoverFlowAdapter> extends View {
     private void makeChildTransfromer(Bitmap child, int position, float offset) {
         mChildTransfromer.reset();
         mReflectionTransfromer.reset();
-
-        float scale = 1 - Math.abs(offset) * CARD_SCALE;
+        float scale = 0;
+	//this scale make sure that each image will be smaller than the
+	//previous one
+	if(position != 0){
+		scale = 1 - Math.abs(offset) * 0.25f;
+	} else {
+		scale = 1 - Math.abs(offset) * CARD_SCALE;
+	}
+        //float scale = 1 - Math.abs(offset) * CARD_SCALE;
         // 延x轴移动的距离应该根据center图片决定
         float translateX = 0;
 
