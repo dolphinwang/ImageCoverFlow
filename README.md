@@ -40,7 +40,8 @@ ImageCoverFlow is an open source Android library that allows developers to easil
 2. Programatically (via Java):
 
 ```java
-CoverFlowView<MyCoverFlowAdapter> mCoverFlowView = (CoverFlowView<MyCoverFlowAdapter>) findViewById(R.id.coverflow);
+CoverFlowView<MyCoverFlowAdapter> mCoverFlowView = 
+    (CoverFlowView<MyCoverFlowAdapter>) findViewById(R.id.coverflow);
 
 mCoverFlowView.setCoverFlowGravity(CoverFlowGravity.CENTER_VERTICAL);
 mCoverFlowView.setCoverFlowLayoutMode(CoverFlowLayoutMode.WRAP_CONTENT);
@@ -51,7 +52,7 @@ mCoverFlowView.enableReflectionShader(true);
 mCoverFlowView.setVisibleImage(5);
 ```
 	
-**TIP**: If you want to support different move speeds on different screen densities, you can call method `setScreenDensity()` to set the screen density. Otherwise coverflow will have unified move speed.
+**TIP**: If you want to support different movement speeds on different screen densities, you can use method `setScreenDensity()`. Otherwise CoverFlow will have a unified movement speed.
 
 ---
 
@@ -63,20 +64,23 @@ mCoverFlowView.setAdapter(adapter);
 ```
 
 **TIPS**:
-* Method `setAdapter()` should be called after all of properties of coverflow are settled.
+* Method `setAdapter()` should be called after all properties of CoverFlow are settled.
 * If you want to load image dynamically, you can call method `invalidatePosistion()` when bitmaps are loaded.
 
 #### Step Three: if you want to listen for the click event of the top image, you can set a `CoverFlowListener` to it:
 
 ```java
 mCoverFlowView.setCoverFlowListener(new CoverFlowListener<MyCoverFlowAdapter>() {
+    @Override
+    public void imageOnTop(CoverFlowView<MyCoverFlowAdapter> view, int position, 
+            float left, float top, float right,float bottom) {
+        // TODO
+    }
 
     @Override
-    public void imageOnTop(CoverFlowView<MyCoverFlowAdapter> view,
-            int position, float left, float top, float right,float bottom) {}
-
-    @Override
-    public void topImageClicked(CoverFlowView<MyCoverFlowAdapter> view, int position){}
+    public void topImageClicked(CoverFlowView<MyCoverFlowAdapter> view, int position) {
+        // TODO
+    }
 });
 ```
 	
