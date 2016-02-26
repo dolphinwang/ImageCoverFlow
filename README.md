@@ -65,7 +65,7 @@ mCoverFlowView.setAdapter(adapter);
 
 **TIPS**:
 * Method `setAdapter()` should be called after all properties of CoverFlow are settled.
-* If you want to load image dynamically, you can call method `invalidatePosistion()` when bitmaps are loaded.
+* If you want to load image dynamically, you can call method `notifyDataSetChanged()` when bitmaps are loaded.
 
 #### Step Three: if you want to listen for the click event of the top image, you can set a `CoverFlowListener` to it:
 
