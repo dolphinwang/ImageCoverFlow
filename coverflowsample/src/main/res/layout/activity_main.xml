@@ -1,0 +1,28 @@
+<RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@android:color/white"
+    android:paddingBottom="@dimen/activity_vertical_margin"
+    android:paddingLeft="@dimen/activity_horizontal_margin"
+    android:paddingRight="@dimen/activity_horizontal_margin"
+    android:paddingTop="@dimen/activity_vertical_margin"
+    tools:context=".MyActivity">
+
+    <com.dolphinwang.imagecoverflow.CoverFlowView xmlns:app="http://schemas.android.com/apk/res-auto"
+        android:id="@+id/coverflow"
+        android:layout_width="match_parent"
+        android:layout_height="400dp"
+        app:coverflowGravity="center_vertical"
+        app:coverflowLayoutMode="match_parent"
+        app:reflectionGap="10dp"
+        app:reflectionHeight="30%"
+        app:visibleImage="5" />
+
+    <Button
+        android:id="@+id/change_bitmap_button"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_below="@id/coverflow"
+        android:text="change bitmap" />
+</RelativeLayout>
