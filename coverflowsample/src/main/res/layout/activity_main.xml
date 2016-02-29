@@ -14,7 +14,7 @@
         android:layout_width="match_parent"
         android:layout_height="400dp"
         app:coverflowGravity="center_vertical"
-        app:coverflowLayoutMode="match_parent"
+        app:coverflowLayoutMode="wrap_content"
         app:reflectionGap="10dp"
         app:reflectionHeight="30%"
         app:visibleImage="5" />

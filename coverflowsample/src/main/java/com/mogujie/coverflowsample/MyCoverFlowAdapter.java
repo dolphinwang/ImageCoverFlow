@@ -36,6 +36,6 @@ public class MyCoverFlowAdapter extends CoverFlowAdapter {
 
     @Override
     public Bitmap getImage(final int position) {
-        return (dataChanged && position == 7) ? image2 : image1;
+        return (dataChanged && position == 0) ? image2 : image1;
     }
 }
