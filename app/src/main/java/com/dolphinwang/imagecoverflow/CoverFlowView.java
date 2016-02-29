@@ -164,10 +164,24 @@ public class CoverFlowView<T extends CoverFlowAdapter> extends View {
         public void onChanged() {
             final int nextItemCount = mAdapter.getCount();
 
+            // If current index of top image will larger than total count in future,
+            // locate it to new mid.
             if (mTopImageIndex % mItemCount > nextItemCount - 1) {
-                mOffset = nextItemCount - (mVisibleImages / 2) - 1;
+                mOffset = nextItemCount - mVisibleImages - 1;
+            } else { // If current index top top image will less than total count in future,
+                // change mOffset to current state in first loop
+                mOffset += mVisibleImages;
+                while (mOffset < 0 || mOffset >= mItemCount) {
+                    if (mOffset < 0) {
+                        mOffset += mItemCount;
+                    } else if (mOffset >= mItemCount) {
+                        mOffset -= mItemCount;
+                    }
+                }
+                mOffset -= mVisibleImages;
             }
 
+            mItemCount = nextItemCount;
             resetCoverFlow();
 
             requestLayout();
@@ -350,14 +364,17 @@ public class CoverFlowView<T extends CoverFlowAdapter> extends View {
         int widthSize = MeasureSpec.getSize(widthMeasureSpec);
         int heightSize = MeasureSpec.getSize(heightMeasureSpec);
 
-        int visibleCount = (mVisibleImages << 1) + 1;
-
         int availableHeight = heightSize - mCoverFlowPadding.top
                 - mCoverFlowPadding.bottom;
 
         int maxChildTotalHeight = 0;
 
-        for (int i = 0; i < visibleCount; ++i) {
+        int visibleCount = (mVisibleImages << 1) + 1;
+        int mid = (int) Math.floor(mOffset + 0.5);
+        int leftChild = visibleCount >> 1;
+        final int startPos = getActuallyPosition(mid - leftChild);
+
+        for (int i = startPos; i < visibleCount + startPos; ++i) {
             Bitmap child = mAdapter.getImage(i);
             final int childHeight = child.getHeight();
             final int childTotalHeight = (int) (childHeight + childHeight
