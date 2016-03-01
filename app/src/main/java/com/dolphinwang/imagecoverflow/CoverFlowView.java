@@ -219,13 +219,8 @@ public class CoverFlowView<T extends CoverFlowAdapter> extends View {
                 R.styleable.ImageCoverFlowView);
 
         int totalVisibleChildren = a.getInt(
-                R.styleable.ImageCoverFlowView_visibleImage, 2);
-        if (totalVisibleChildren % 2 == 0) {
-            throw new IllegalArgumentException(
-                    "visible image must be an odd number");
-        }
-
-        mVisibleImages = totalVisibleChildren >> 1;
+                R.styleable.ImageCoverFlowView_visibleImage, 3);
+        setVisibleImage(totalVisibleChildren);
 
         reflectHeightFraction = a.getFraction(
                 R.styleable.ImageCoverFlowView_reflectionHeight, 100, 0, 0.0f);
@@ -288,10 +283,6 @@ public class CoverFlowView<T extends CoverFlowAdapter> extends View {
             mAdapter.registerDataSetObserver(mDataSetObserver);
 
             mItemCount = mAdapter.getCount();
-            if (mItemCount < (mVisibleImages << 1) + 1) {
-                throw new IllegalArgumentException(
-                        "total count in adapter must larger than visible images!");
-            }
 
             if (mRecycler != null) {
                 mRecycler.clear();
@@ -316,6 +307,16 @@ public class CoverFlowView<T extends CoverFlowAdapter> extends View {
     }
 
     private void resetCoverFlow() {
+
+        if (mItemCount < 3) {
+            throw new IllegalArgumentException(
+                    "total count in adapter must larger than 3!");
+        }
+
+        final int totalVisible = mVisibleImages * 2 + 1;
+        if (mItemCount < totalVisible) {
+            mVisibleImages = (mItemCount - 1) / 2;
+        }
 
         mChildHeight = 0;
 
@@ -898,6 +899,11 @@ public class CoverFlowView<T extends CoverFlowAdapter> extends View {
         if (count % 2 == 0) {
             throw new IllegalArgumentException(
                     "visible image must be an odd number");
+        }
+
+        if (count < 3) {
+            throw new IllegalArgumentException(
+                    "visible image must larger than 3");
         }
 
         mVisibleImages = count / 2;

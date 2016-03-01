@@ -31,7 +31,7 @@ public class MyCoverFlowAdapter extends CoverFlowAdapter {
 
     @Override
     public int getCount() {
-        return dataChanged ? 10 : 8;
+        return dataChanged ? 3 : 8;
     }
 
     @Override
