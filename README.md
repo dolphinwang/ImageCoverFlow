@@ -11,6 +11,7 @@ ImageCoverFlow is an open source Android library that allows developers to easil
 #### ImageCoverFlow is currently used in some published Android apps:
 
 1. [ICardEnglish](https://play.google.com/store/apps/details?id=com.cn.icardenglish&hl=zh_CN)
+2. [PNP iSerbis](https://play.google.com/store/apps/details?id=ph.gov.pnp.itms.itmspnpiserbis)
 
 ---
 
