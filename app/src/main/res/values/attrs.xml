@@ -5,7 +5,8 @@
         <attr name="visibleImage" format="integer" />
         <attr name="reflectionHeight" format="fraction" />
         <attr name="reflectionGap" format="dimension" />
-        <attr name="topImageClickEnable" format="boolean" />
+        <attr name="imageClickEnable" format="boolean" />
+        <attr name="imageLongClickEnable" format="boolean" />
         <attr name="coverflowGravity" format="enum">
             <enum name="top" value="0" />
             <enum name="bottom" value="1" />

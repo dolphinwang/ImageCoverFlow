@@ -4,8 +4,6 @@
 
 ImageCoverFlow is an open source Android library that allows developers to easily create applications with a cover flow effect to show images. This library does not extend Gallery. Feel free to use it all you want in your Android apps provided that you cite this project and include the license in your app.
 
-**Note**: looping mode is currently supported, non-looping mode will be supported later.
-
 ![Oops! The screenshot is missing!](https://github.com/dolphinwang/ImageCoverFlow/raw/master/imagecoverflow_screenshot.png)
 
 #### ImageCoverFlow is currently used in some published Android apps:
@@ -31,10 +29,8 @@ ImageCoverFlow is an open source Android library that allows developers to easil
     android:paddingRight="20dp"
     imageCoverFlow:coverflowGravity="center_vertical"
     imageCoverFlow:coverflowLayoutMode="wrap_content"
-    imageCoverFlow:enableReflection="true"
     imageCoverFlow:reflectionGap="10dp"
     imageCoverFlow:reflectionHeight="30%"
-    imageCoverFlow:reflectionShaderEnable="true"
     imageCoverFlow:visibleImage="5" />
 ```
 
@@ -46,14 +42,10 @@ CoverFlowView<MyCoverFlowAdapter> mCoverFlowView =
 
 mCoverFlowView.setCoverFlowGravity(CoverFlowGravity.CENTER_VERTICAL);
 mCoverFlowView.setCoverFlowLayoutMode(CoverFlowLayoutMode.WRAP_CONTENT);
-mCoverFlowView.enableReflection(true);
 mCoverFlowView.setReflectionHeight(30);
 mCoverFlowView.setReflectionGap(20);
-mCoverFlowView.enableReflectionShader(true);
 mCoverFlowView.setVisibleImage(5);
 ```
-
-**TIP**: If you want to support different movement speeds on different screen densities, you can use method `setScreenDensity()`. Otherwise CoverFlow will have a unified movement speed.
 
 ---
 
@@ -68,10 +60,10 @@ mCoverFlowView.setAdapter(adapter);
 * Method `setAdapter()` should be called after all properties of CoverFlow are settled.
 * If you want to load image dynamically, you can call method `notifyDataSetChanged()` when bitmaps are loaded.
 
-#### Step Three: if you want to listen for the click event of the top image, you can set a `CoverFlowListener` to it:
+#### Step Three: if you want to listen for the click event of the top image, you can set a `StateListener` to it:
 
 ```java
-mCoverFlowView.setCoverFlowListener(new CoverFlowListener<MyCoverFlowAdapter>() {
+mCoverFlowView.setStateListener(new CoverFlowView.StateListener() {
     @Override
     public void imageOnTop(CoverFlowView<MyCoverFlowAdapter> view, int position,
             float left, float top, float right,float bottom) {
@@ -79,25 +71,37 @@ mCoverFlowView.setCoverFlowListener(new CoverFlowListener<MyCoverFlowAdapter>() 
     }
 
     @Override
-    public void topImageClicked(CoverFlowView<MyCoverFlowAdapter> view, int position) {
+    public void invalidationCompleted(CoverFlowView view) {
         // TODO
     }
 });
 ```
 
-If you want to listen for long click events of the top image, you can set a `TopImageLongClickListener` to it:
+if you want to listen for click events of showing images, you can set a `ImageClickListener` to it:
+
+```java
+mCoverFlowView.setImageClickListener(new CoverFlowView.ImageClickListener() {
+            @Override
+            public void onClick(CoverFlowView coverFlowView, int position) {
+				// TODO
+            }
+});
+```
+
+
+If you want to listen for long click events of the top image, you can set a `ImageLongClickListener` to it:
 
 ```java
 mCoverFlowView
-    .setTopImageLongClickListener(new CoverFlowView.TopImageLongClickListener() {
+    .setImageLongClickListener(new CoverFlowView.ImageLongClickListener() {
         @Override
-        public void onLongClick(int position) {
-            Log.e(VIEW_LOG_TAG, "top image long clicked ==> " + position);
+        public void onLongClick(CoverFlowView view, int position) {
+            // TODO
         }
     });
 ```
 
-Users can use method `setSelection()` to show a specific position at the top.
+Users can use method `setSelection(int position)` to show a specific position at the top.
 
 ---
 

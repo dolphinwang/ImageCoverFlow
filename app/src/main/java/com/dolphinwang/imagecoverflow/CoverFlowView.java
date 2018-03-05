@@ -25,7 +25,6 @@ import android.graphics.Matrix;
 import android.graphics.Paint;
 import android.graphics.PaintFlagsDrawFilter;
 import android.graphics.Rect;
-import android.graphics.RectF;
 import android.os.Build;
 import android.support.v4.util.LruCache;
 import android.util.AttributeSet;
@@ -60,7 +59,7 @@ public class CoverFlowView<T extends CoverFlowAdapter> extends View {
 
     private static final int DURATION = 200;
 
-    protected final int INVALID_POSITION = -1;
+    protected final int INVALID_INDEX = -1;
 
     protected static final int DEFAULT_VISIBLE_IMAGES = 3;
 
@@ -94,8 +93,8 @@ public class CoverFlowView<T extends CoverFlowAdapter> extends View {
     protected int mCoverFlowCenter;
     private T mAdapter;
 
-    private int mVisibleChildCount;
-    private int mItemCount;
+    private int mVisibleImageCount;
+    private int mImageCount;
 
     /**
      * True if the data has changed since the last layout
@@ -110,12 +109,12 @@ public class CoverFlowView<T extends CoverFlowAdapter> extends View {
 
     private PaintFlagsDrawFilter mDrawFilter;
 
-    private Matrix mChildTransformer;
+    private Matrix mImageTransformer;
     private Matrix mReflectionTransformer;
 
-    private Paint mDrawChildPaint;
+    private Paint mDrawImagePaint;
 
-    private RectF mTouchRect;
+    private SparseArray<CoverFlowCell> mImageCells;
 
     private int mWidth;
     private boolean mTouchMoved;
@@ -133,55 +132,52 @@ public class CoverFlowView<T extends CoverFlowAdapter> extends View {
     private Runnable mAnimationRunnable;
     private VelocityTracker mVelocity;
 
-    private int mChildHeight;
+    private int mCellHeight;
     private int mChildTranslateY;
     private int mReflectionTranslateY;
 
     private float reflectHeightFraction;
     private int reflectGap;
 
-    private boolean topImageClickEnable = true;
+    private boolean imageClickEnable = true;
+    private boolean imageLongClickEnable = true;
 
-    private CoverFlowListener<T> mCoverFlowListener;
+    private StateListener mStateListener;
 
-    private TopImageLongClickListener mLongClickListener;
+    private ImageLongClickListener mLongClickListener;
     private LongClickRunnable mLongClickRunnable;
-    private boolean mLongClickPosted;
     private boolean mLongClickTriggled;
+
+    private ImageClickListener mClickListener;
 
     private int mTopImageIndex;
 
     private Scroller mScroller;
 
-    /**
-     * Record origin width and height of images
-     */
-    private SparseArray<int[]> mImageRecorder;
-
     private DataSetObserver mDataSetObserver = new DataSetObserver() {
 
         @Override
         public void onChanged() {
-            final int nextItemCount = mAdapter.getCount();
+            final int nextImageCount = mAdapter.getCount();
 
             // If current index of top image will larger than total count in future,
             // locate it to new mid.
-            if (mTopImageIndex % mItemCount > nextItemCount - 1) {
-                mOffset = nextItemCount - mVisibleImages - 1;
+            if (mTopImageIndex % mImageCount > nextImageCount - 1) {
+                mOffset = nextImageCount - mVisibleImages - 1;
             } else { // If current index top top image will less than total count in future,
                 // change mOffset to current state in first loop
                 mOffset += mVisibleImages;
-                while (mOffset < 0 || mOffset >= mItemCount) {
+                while (mOffset < 0 || mOffset >= mImageCount) {
                     if (mOffset < 0) {
-                        mOffset += mItemCount;
-                    } else if (mOffset >= mItemCount) {
-                        mOffset -= mItemCount;
+                        mOffset += mImageCount;
+                    } else if (mOffset >= mImageCount) {
+                        mOffset -= mImageCount;
                     }
                 }
                 mOffset -= mVisibleImages;
             }
 
-            mItemCount = nextItemCount;
+            mImageCount = nextImageCount;
             resetCoverFlow();
 
             requestLayout();
@@ -231,6 +227,9 @@ public class CoverFlowView<T extends CoverFlowAdapter> extends View {
         reflectGap = a.getDimensionPixelSize(
                 R.styleable.ImageCoverFlowView_reflectionGap, 0);
 
+        imageClickEnable = a.getBoolean(R.styleable.ImageCoverFlowView_imageClickEnable, true);
+        imageLongClickEnable = a.getBoolean(R.styleable.ImageCoverFlowView_imageLongClickEnable, true);
+
         mGravity = CoverFlowGravity.values()[a.getInt(
                 R.styleable.ImageCoverFlowView_coverflowGravity,
                 CoverFlowGravity.CENTER_VERTICAL.ordinal())];
@@ -246,16 +245,12 @@ public class CoverFlowView<T extends CoverFlowAdapter> extends View {
         setWillNotDraw(false);
         setClickable(true);
 
-        mChildTransformer = new Matrix();
+        mImageTransformer = new Matrix();
         mReflectionTransformer = new Matrix();
 
-        mTouchRect = new RectF();
-
-        mImageRecorder = new SparseArray<int[]>();
-
-        mDrawChildPaint = new Paint();
-        mDrawChildPaint.setAntiAlias(true);
-        mDrawChildPaint.setFlags(Paint.ANTI_ALIAS_FLAG);
+        mDrawImagePaint = new Paint();
+        mDrawImagePaint.setAntiAlias(true);
+        mDrawImagePaint.setFlags(Paint.ANTI_ALIAS_FLAG);
 
         mCoverFlowPadding = new Rect();
 
@@ -282,7 +277,7 @@ public class CoverFlowView<T extends CoverFlowAdapter> extends View {
         if (mAdapter != null) {
             mAdapter.registerDataSetObserver(mDataSetObserver);
 
-            mItemCount = mAdapter.getCount();
+            mImageCount = mAdapter.getCount();
 
             if (mRecycler != null) {
                 mRecycler.clear();
@@ -302,23 +297,23 @@ public class CoverFlowView<T extends CoverFlowAdapter> extends View {
         return mAdapter;
     }
 
-    public void setCoverFlowListener(CoverFlowListener<T> l) {
-        mCoverFlowListener = l;
+    public void setStateListener(StateListener l) {
+        mStateListener = l;
     }
 
     private void resetCoverFlow() {
 
-        if (mItemCount < 3) {
+        if (mImageCount < 3) {
             throw new IllegalArgumentException(
                     "total count in adapter must larger than 3!");
         }
 
         final int totalVisible = mVisibleImages * 2 + 1;
-        if (mItemCount < totalVisible) {
-            mVisibleImages = (mItemCount - 1) / 2;
+        if (mImageCount < totalVisible) {
+            mVisibleImages = (mImageCount - 1) / 2;
         }
 
-        mChildHeight = 0;
+        mCellHeight = 0;
 
         STANDARD_ALPHA = (255 - ALPHA_DATUM) / mVisibleImages;
 
@@ -330,9 +325,9 @@ public class CoverFlowView<T extends CoverFlowAdapter> extends View {
             mLayoutMode = CoverFlowLayoutMode.WRAP_CONTENT;
         }
 
-        mImageRecorder.clear();
+        mImageCells = new SparseArray<>(mImageCount);
 
-        mTopImageIndex = INVALID_POSITION;
+        mTopImageIndex = INVALID_INDEX;
         mDataSetChanged = true;
     }
 
@@ -373,7 +368,7 @@ public class CoverFlowView<T extends CoverFlowAdapter> extends View {
         int visibleCount = (mVisibleImages << 1) + 1;
         int mid = (int) Math.floor(mOffset + 0.5);
         int leftChild = visibleCount >> 1;
-        final int startPos = getActuallyPosition(mid - leftChild);
+        final int startPos = getIndex(mid - leftChild);
 
         for (int i = startPos; i < visibleCount + startPos; ++i) {
             Bitmap child = mAdapter.getImage(i);
@@ -390,21 +385,21 @@ public class CoverFlowView<T extends CoverFlowAdapter> extends View {
             // if height which parent provided is less than child need, scale
             // child height to parent provide
             if (availableHeight < maxChildTotalHeight) {
-                mChildHeight = availableHeight;
+                mCellHeight = availableHeight;
             } else {
                 // if larger than, depends on layout mode
                 // if layout mode is match_parent, scale child height to parent
                 // provide
                 if (mLayoutMode == CoverFlowLayoutMode.MATCH_PARENT) {
-                    mChildHeight = availableHeight;
+                    mCellHeight = availableHeight;
                     // if layout mode is wrap_content, keep child's original
                     // height
                 } else if (mLayoutMode == CoverFlowLayoutMode.WRAP_CONTENT) {
-                    mChildHeight = maxChildTotalHeight;
+                    mCellHeight = maxChildTotalHeight;
 
                     // adjust parent's height
                     if (heightMode == MeasureSpec.AT_MOST) {
-                        heightSize = mChildHeight + mCoverFlowPadding.top
+                        heightSize = mCellHeight + mCoverFlowPadding.top
                                 + mCoverFlowPadding.bottom;
                     }
                 }
@@ -412,30 +407,30 @@ public class CoverFlowView<T extends CoverFlowAdapter> extends View {
         } else {
             // height mode is unspecified
             if (mLayoutMode == CoverFlowLayoutMode.MATCH_PARENT) {
-                mChildHeight = availableHeight;
+                mCellHeight = availableHeight;
             } else if (mLayoutMode == CoverFlowLayoutMode.WRAP_CONTENT) {
-                mChildHeight = maxChildTotalHeight;
+                mCellHeight = maxChildTotalHeight;
 
                 // adjust parent's height
-                heightSize = mChildHeight + mCoverFlowPadding.top
+                heightSize = mCellHeight + mCoverFlowPadding.top
                         + mCoverFlowPadding.bottom;
             }
         }
 
         // Adjust movement in y-axis according to gravity
         if (mGravity == CoverFlowGravity.CENTER_VERTICAL) {
-            mChildTranslateY = (heightSize >> 1) - (mChildHeight >> 1);
+            mChildTranslateY = (heightSize >> 1) - (mCellHeight >> 1);
         } else if (mGravity == CoverFlowGravity.TOP) {
             mChildTranslateY = mCoverFlowPadding.top;
         } else if (mGravity == CoverFlowGravity.BOTTOM) {
             mChildTranslateY = heightSize - mCoverFlowPadding.bottom
-                    - mChildHeight;
+                    - mCellHeight;
         }
-        mReflectionTranslateY = (int) (mChildTranslateY + mChildHeight - mChildHeight
+        mReflectionTranslateY = (int) (mChildTranslateY + mCellHeight - mCellHeight
                 * reflectHeightFraction);
 
         setMeasuredDimension(widthSize, heightSize);
-        mVisibleChildCount = visibleCount;
+        mVisibleImageCount = visibleCount;
         mWidth = widthSize;
     }
 
@@ -458,13 +453,14 @@ public class CoverFlowView<T extends CoverFlowAdapter> extends View {
 
         canvas.setDrawFilter(mDrawFilter);
 
+        Log.e(VIEW_LOG_TAG, "mOffset==>" + mOffset);
+
         final float offset = mOffset;
         int i = 0;
         int mid = (int) Math.floor(offset + 0.5);
 
-        int rightChild = (mVisibleChildCount % 2 == 0) ? (mVisibleChildCount >> 1) - 1
-                : mVisibleChildCount >> 1;
-        int leftChild = mVisibleChildCount >> 1;
+        int rightChild, leftChild;
+        rightChild = leftChild = mVisibleImageCount / 2;
 
         // draw the left children
         int startPos = mid - leftChild;
@@ -478,38 +474,59 @@ public class CoverFlowView<T extends CoverFlowAdapter> extends View {
             drawChild(canvas, mid, i, i - offset);
         }
 
-        if ((offset - (int) offset) == 0.0f) {
-            imageOnTop(getActuallyPosition((int) offset));
+        // call imageOnTop
+        if (mStateListener != null && (offset - (int) offset) == 0.0f) {
+            final int topImageIndex = getIndex((int) offset);
+
+            if (mTopImageIndex != topImageIndex
+                    && mImageCells.get(mTopImageIndex) != null) {
+                mImageCells.get(mTopImageIndex).isOnTop = false;
+            }
+            mTopImageIndex = topImageIndex;
+            final CoverFlowCell cell = mImageCells.get(topImageIndex);
+            cell.isOnTop = true;
+            mStateListener.imageOnTop(this, topImageIndex
+                    , cell.showingRect.left, cell.showingRect.top,
+                    cell.showingRect.right, cell.showingRect.bottom);
         }
 
         super.onDraw(canvas);
 
-        mCoverFlowListener.invalidationCompleted();
+        if (mStateListener != null) {
+            mStateListener.invalidationCompleted(this);
+        }
     }
 
     protected final void drawChild(Canvas canvas, int mid, int position, float offset) {
 
-        int actuallyPosition = getActuallyPosition(position);
+        int index = getIndex(position);
 
-        final Bitmap child = mAdapter.getImage(actuallyPosition);
+        final Bitmap child = mAdapter.getImage(index);
         final Bitmap reflection = obtainReflection(child);
 
-        int[] wAndh = mImageRecorder.get(actuallyPosition);
-        if (wAndh == null) {
-            wAndh = new int[]{child.getWidth(), child.getHeight()};
-            mImageRecorder.put(actuallyPosition, wAndh);
-        } else {
-            wAndh[0] = child.getWidth();
-            wAndh[1] = child.getHeight();
+        CoverFlowCell cell = mImageCells.get(index);
+        if (cell == null) {
+            cell = new CoverFlowCell();
+            cell.index = index;
+            mImageCells.put(index, cell);
         }
+        cell.showingPosition = position;
+        cell.width = child.getWidth();
+        cell.height = child.getHeight();
 
         if (child != null && !child.isRecycled() && canvas != null) {
             makeChildTransformer(child, mid, position, offset);
-            canvas.drawBitmap(child, mChildTransformer, mDrawChildPaint);
-            if (reflection != null) {
 
+            // record cell data, only when images in "non-intermediate state"
+            if ((offset - (int) offset) == 0.0f) {
+                cell.mapTransform(mImageTransformer);
+            }
+
+            canvas.drawBitmap(child, mImageTransformer, mDrawImagePaint);
+
+            if (reflection != null) {
                 canvas.drawBitmap(reflection, mReflectionTransformer,
-                        mDrawChildPaint);
+                        mDrawImagePaint);
             }
         }
     }
@@ -524,43 +541,43 @@ public class CoverFlowView<T extends CoverFlowAdapter> extends View {
      * @param offset
      */
     private void makeChildTransformer(Bitmap child, int mid, int position, float offset) {
-        mChildTransformer.reset();
+        mImageTransformer.reset();
         mReflectionTransformer.reset();
 
-        float scale = 0;
+        float spreadScale = 0;
         //this scale make sure that each image will be smaller than the
         //previous one
         if (position != mid) {
-            scale = 1 - Math.abs(offset) * 0.25f;
+            spreadScale = 1 - Math.abs(offset) * 0.25f;
         } else {
-            scale = 1 - Math.abs(offset) * CARD_SCALE;
+            spreadScale = 1 - Math.abs(offset) * CARD_SCALE;
         }
-        //float scale = 1 - Math.abs(offset) * CARD_SCALE;
+
         // 延x轴移动的距离应该根据center图片决定
         float translateX = 0;
 
-        final int originalChildHeight = (int) (mChildHeight - mChildHeight
+        final int imageHeight = (int) (mCellHeight - mCellHeight
                 * reflectHeightFraction - reflectGap);
-        final int childTotalHeight = (int) (child.getHeight()
+        final int cellHeight = (int) (child.getHeight()
                 + child.getHeight() * reflectHeightFraction + reflectGap);
 
-        final float originalChildHeightScale = (float) originalChildHeight
-                / child.getHeight();
-        final float childHeightScale = originalChildHeightScale * scale;
-        final int childWidth = (int) (child.getWidth() * childHeightScale);
-        final int centerChildWidth = (int) (child.getWidth() * originalChildHeightScale);
-        int leftSpace = ((mWidth >> 1) - mCoverFlowPadding.left)
-                - (centerChildWidth >> 1);
-        int rightSpace = (((mWidth >> 1) - mCoverFlowPadding.right) - (centerChildWidth >> 1));
+        final float imageScale = (float) imageHeight / child.getHeight();
+        final float totallyScale = imageScale * spreadScale;
 
-        if (offset <= 0)
+        final int showingWidth = (int) (child.getWidth() * totallyScale);
+        final int centerShowingWidth = (int) (child.getWidth() * imageScale);
+        int leftSpace = ((mWidth / 2) - mCoverFlowPadding.left)
+                - (centerShowingWidth / 2);
+        int rightSpace = (((mWidth / 2) - mCoverFlowPadding.right) - (centerShowingWidth / 2));
+
+        if (offset <= 0) {
             translateX = ((float) leftSpace / mVisibleImages)
                     * (mVisibleImages + offset) + mCoverFlowPadding.left;
-
-        else
+        } else {
             translateX = mWidth - ((float) rightSpace / mVisibleImages)
-                    * (mVisibleImages - offset) - childWidth
+                    * (mVisibleImages - offset) - showingWidth
                     - mCoverFlowPadding.right;
+        }
 
         float alpha = (float) 254 - Math.abs(offset) * STANDARD_ALPHA;
 
@@ -570,42 +587,41 @@ public class CoverFlowView<T extends CoverFlowAdapter> extends View {
             alpha = 254;
         }
 
-        mDrawChildPaint.setAlpha((int) alpha);
+        mDrawImagePaint.setAlpha((int) alpha);
 
-        mChildTransformer.preTranslate(0, -(childTotalHeight >> 1));
+        mImageTransformer.preTranslate(0, -(cellHeight / 2));
         // matrix中的postxxx为顺序执行，相反prexxx为倒叙执行
-        mChildTransformer.postScale(childHeightScale, childHeightScale);
+        mImageTransformer.postScale(totallyScale, totallyScale);
 
         if ((offset - (int) offset) == 0.0f) {
-            Log.e(VIEW_LOG_TAG, "offset=>" + offset + " scale=>" + childHeightScale);
+            Log.e(VIEW_LOG_TAG, "offset=>" + offset + " scale=>" + totallyScale);
         }
 
-        // if actually child height is larger or smaller than original child
-        // height
+        // if actually child height is larger or smaller than original child height
         // need to change translate distance of y-axis
         float adjustedChildTranslateY = 0;
-        if (childHeightScale != 1) {
-            adjustedChildTranslateY = (mChildHeight - childTotalHeight) >> 1;
+        if (totallyScale != 1) {
+            adjustedChildTranslateY = (mCellHeight - cellHeight) / 2;
         }
 
-        mChildTransformer.postTranslate(translateX, mChildTranslateY
+        mImageTransformer.postTranslate(translateX, mChildTranslateY
                 + adjustedChildTranslateY);
 
         // Log.d(VIEW_LOG_TAG, "position= " + position + " mChildTranslateY= "
         // + mChildTranslateY + adjustedChildTranslateY);
 
-        getCustomTransformMatrix(mChildTransformer, mDrawChildPaint, child,
+        getCustomTransformMatrix(mImageTransformer, mDrawImagePaint, child,
                 position, offset);
 
-        mChildTransformer.postTranslate(0, (childTotalHeight >> 1));
+        mImageTransformer.postTranslate(0, (cellHeight / 2));
 
-        mReflectionTransformer.preTranslate(0, -(childTotalHeight >> 1));
-        mReflectionTransformer.postScale(childHeightScale, childHeightScale);
+        mReflectionTransformer.preTranslate(0, -(cellHeight / 2));
+        mReflectionTransformer.postScale(totallyScale, totallyScale);
         mReflectionTransformer.postTranslate(translateX, mReflectionTranslateY
-                * scale + adjustedChildTranslateY);
-        getCustomTransformMatrix(mReflectionTransformer, mDrawChildPaint,
+                * spreadScale + adjustedChildTranslateY);
+        getCustomTransformMatrix(mReflectionTransformer, mDrawImagePaint,
                 child, position, offset);
-        mReflectionTransformer.postTranslate(0, (childTotalHeight >> 1));
+        mReflectionTransformer.postTranslate(0, (cellHeight / 2));
     }
 
     /**
@@ -634,32 +650,6 @@ public class CoverFlowView<T extends CoverFlowAdapter> extends View {
         // mChildTransfromMatrix.preConcat(m);
     }
 
-    private void imageOnTop(int position) {
-        mTopImageIndex = position;
-
-        final int[] wAndh = mImageRecorder.get(position);
-
-        final int heightInView = (int) (mChildHeight - mChildHeight
-                * reflectHeightFraction - reflectGap);
-        final float scale = (float) heightInView / wAndh[1];
-        final int widthInView = (int) (wAndh[0] * scale);
-
-        Log.e(VIEW_LOG_TAG, "height ==>" + heightInView + " width ==>"
-                + widthInView);
-
-        mTouchRect.left = (mWidth >> 1) - (widthInView >> 1);
-        mTouchRect.top = mChildTranslateY;
-        mTouchRect.right = mTouchRect.left + widthInView;
-        mTouchRect.bottom = mTouchRect.top + heightInView;
-
-        Log.e(VIEW_LOG_TAG, "rect==>" + mTouchRect);
-
-        if (mCoverFlowListener != null) {
-            mCoverFlowListener.imageOnTop(this, position, mTouchRect.left,
-                    mTouchRect.top, mTouchRect.right, mTouchRect.bottom);
-        }
-    }
-
     @Override
     public boolean onTouchEvent(MotionEvent event) {
         if (getParent() != null) {
@@ -673,8 +663,6 @@ public class CoverFlowView<T extends CoverFlowAdapter> extends View {
                     mScroller.abortAnimation();
                     invalidate();
                 }
-                stopLongClick();
-                triggleLongClick(event.getX(), event.getY());
                 touchBegan(event);
                 return true;
             case MotionEvent.ACTION_MOVE:
@@ -682,29 +670,67 @@ public class CoverFlowView<T extends CoverFlowAdapter> extends View {
                 return true;
             case MotionEvent.ACTION_UP:
                 touchEnded(event);
-                stopLongClick();
                 return true;
         }
 
         return false;
     }
 
-    private void triggleLongClick(float x, float y) {
-        if (mTouchRect.contains(x, y) && mLongClickListener != null
-                && topImageClickEnable && !mLongClickPosted) {
-            final int actuallyPosition = mTopImageIndex;
-
-            mLongClickRunnable.setPosition(actuallyPosition);
-            postDelayed(mLongClickRunnable, LONG_CLICK_DELAY);
+    private void startLongClick(float x, float y) {
+        if (imageLongClickable()) {
+            final int touchedImageIndex = findTouchedImage(x, y, mTopImageIndex);
+            if (touchedImageIndex != INVALID_INDEX) {
+                mLongClickRunnable.setPosition(touchedImageIndex);
+                postDelayed(mLongClickRunnable, LONG_CLICK_DELAY);
+            }
         }
     }
 
-    private void stopLongClick() {
+    private void resetLongClick() {
         if (mLongClickRunnable != null) {
             removeCallbacks(mLongClickRunnable);
-            mLongClickPosted = false;
-            mLongClickTriggled = false;
         }
+        mLongClickTriggled = false;
+    }
+
+    private int findTouchedImage(float x, float y, int mid) {
+        final int leftStart = mid - (mVisibleImageCount / 2);
+        for (int i = mid; i >= leftStart; i--) {
+            if (i >= mImageCount) {
+                i -= mImageCount;
+            } else if (i < 0) {
+                i += mImageCount;
+            }
+
+            CoverFlowCell cell = mImageCells.get(i);
+            if (cell.inTouchArea(x, y)) {
+                return i;
+            }
+        }
+
+        final int rightStart = mid + 1;
+        for (int i = rightStart; i <= mid + (mVisibleImageCount / 2); i++) {
+            if (i >= mImageCount) {
+                i -= mImageCount;
+            } else if (i < 0) {
+                i += mImageCount;
+            }
+
+            CoverFlowCell cell = mImageCells.get(i);
+            if (cell.inTouchArea(x, y)) {
+                return i;
+            }
+        }
+
+        return INVALID_INDEX;
+    }
+
+    private boolean imageLongClickable() {
+        return (mLongClickListener != null && imageLongClickEnable);
+    }
+
+    private boolean imageClickable() {
+        return (mClickListener != null && imageClickEnable);
     }
 
     private void touchBegan(MotionEvent event) {
@@ -723,6 +749,11 @@ public class CoverFlowView<T extends CoverFlowAdapter> extends View {
 
         mVelocity = VelocityTracker.obtain();
         mVelocity.addMovement(event);
+
+        // reset first
+        resetLongClick();
+        // than post an runnable to start lone clock event monitor
+        startLongClick(mTouchStartX, mTouchStartY);
     }
 
     private void touchMoved(MotionEvent event) {
@@ -738,7 +769,7 @@ public class CoverFlowView<T extends CoverFlowAdapter> extends View {
 
             mTouchMoved = true;
 
-            stopLongClick();
+            resetLongClick();
         }
 
         mOffset = mStartOffset + mTouchStartPos - pos;
@@ -768,21 +799,23 @@ public class CoverFlowView<T extends CoverFlowAdapter> extends View {
 
             startAnimation(-speed);
         } else {
+            final float x = event.getX();
+            final float y = event.getY();
             Log.e(VIEW_LOG_TAG,
-                    " touch ==>" + event.getX() + " , " + event.getY());
-            if (mTouchRect != null) {
-                if (mTouchRect.contains(event.getX(), event.getY())
-                        && mCoverFlowListener != null && topImageClickEnable
-                        && !mLongClickTriggled) {
-                    final int actuallyPosition = mTopImageIndex;
+                    " touch ==>" + x + " , " + y);
 
-                    mCoverFlowListener.topImageClicked(this, actuallyPosition);
+            if (imageClickable() && !mLongClickTriggled) {
+                final int touchedImageIndex = findTouchedImage(x, y, mTopImageIndex);
+                if (touchedImageIndex != INVALID_INDEX) {
+                    mClickListener.onClick(this, touchedImageIndex);
                 }
             }
         }
 
         mVelocity.clear();
         mVelocity.recycle();
+
+        resetLongClick();
     }
 
     private void startAnimation(double speed) {
@@ -848,28 +881,28 @@ public class CoverFlowView<T extends CoverFlowAdapter> extends View {
     }
 
     /**
-     * Convert draw-index to index in adapter
+     * Convert showing position to index in adapter
      *
-     * @param position position to draw
+     * @param showingPosition position to draw
      * @return
      */
-    private int getActuallyPosition(int position) {
+    private int getIndex(int showingPosition) {
         if (mAdapter == null) {
-            return INVALID_POSITION;
+            return INVALID_INDEX;
         }
 
         int max = mAdapter.getCount();
 
-        position += mVisibleImages;
-        while (position < 0 || position >= max) {
-            if (position < 0) {
-                position += max;
-            } else if (position >= max) {
-                position -= max;
+        showingPosition += mVisibleImages;
+        while (showingPosition < 0 || showingPosition >= max) {
+            if (showingPosition < 0) {
+                showingPosition += max;
+            } else if (showingPosition >= max) {
+                showingPosition -= max;
             }
         }
 
-        return position;
+        return showingPosition;
     }
 
     private Bitmap obtainReflection(Bitmap src) {
@@ -934,12 +967,20 @@ public class CoverFlowView<T extends CoverFlowAdapter> extends View {
         reflectGap = gap;
     }
 
-    public void disableTopImageClick() {
-        topImageClickEnable = false;
+    public void disableImageClick() {
+        imageClickEnable = false;
     }
 
-    public void enableTopImageClick() {
-        topImageClickEnable = true;
+    public void enableImageClick() {
+        imageClickEnable = true;
+    }
+
+    public void disableImageLongClick() {
+        imageLongClickEnable = false;
+    }
+
+    public void enableImageLongClick() {
+        imageLongClickEnable = true;
     }
 
     public void setSelection(int position) {
@@ -954,17 +995,28 @@ public class CoverFlowView<T extends CoverFlowAdapter> extends View {
                 mScroller.abortAnimation();
             }
 
-            final int from = (int) (mOffset * 100);
-            final int disX = (int) ((position - mVisibleImages) * 100) - from;
+            final int fromX = (int) (mOffset * 100);
+
+            final CoverFlowCell destCell = mImageCells.get(position);
+            final CoverFlowCell midCell = mImageCells.get(mTopImageIndex);
+
+            if (destCell.showingRect.right > midCell.showingRect.right
+                    && position < mTopImageIndex) {
+                position += mImageCount;
+            } else if (destCell.showingRect.left < midCell.showingRect.left
+                    && position > mTopImageIndex) {
+                position -= mImageCount;
+            }
+
+            final int indexGap = position - mTopImageIndex;
+            final int disX = indexGap * 100;
+
             mScroller.startScroll(
-                    from,
+                    fromX,
                     0,
                     disX,
                     0,
-                    DURATION
-                            * Math.min(
-                            Math.abs(position + max - mTopImageIndex),
-                            Math.abs(position - mTopImageIndex)));
+                    DURATION * Math.abs(indexGap));
 
             invalidate();
         }
@@ -983,7 +1035,7 @@ public class CoverFlowView<T extends CoverFlowAdapter> extends View {
         }
     }
 
-    public void setTopImageLongClickListener(TopImageLongClickListener listener) {
+    public void setImageLongClickListener(ImageLongClickListener listener) {
         mLongClickListener = listener;
 
         if (listener == null) {
@@ -995,8 +1047,12 @@ public class CoverFlowView<T extends CoverFlowAdapter> extends View {
         }
     }
 
+    public void setImageClickListener(ImageClickListener listener) {
+        mClickListener = listener;
+    }
+
     public int getTopImageIndex() {
-        if (mTopImageIndex == INVALID_POSITION) {
+        if (mTopImageIndex == INVALID_INDEX) {
             return -1;
         }
 
@@ -1013,7 +1069,7 @@ public class CoverFlowView<T extends CoverFlowAdapter> extends View {
         @Override
         public void run() {
             if (mLongClickListener != null) {
-                mLongClickListener.onLongClick(position);
+                mLongClickListener.onLongClick(CoverFlowView.this, position);
                 mLongClickTriggled = true;
             }
         }
@@ -1075,17 +1131,18 @@ public class CoverFlowView<T extends CoverFlowAdapter> extends View {
         }
     }
 
-    public interface TopImageLongClickListener {
-        void onLongClick(int position);
+    public interface ImageLongClickListener {
+        void onLongClick(CoverFlowView coverFlowView, int position);
     }
 
-    public interface CoverFlowListener<V extends CoverFlowAdapter> {
-        void imageOnTop(final CoverFlowView<V> coverFlowView,
+    public interface ImageClickListener {
+        void onClick(CoverFlowView coverFlowView, int position);
+    }
+
+    public interface StateListener {
+        void imageOnTop(CoverFlowView coverFlowView,
                         int position, float left, float top, float right, float bottom);
 
-        void topImageClicked(final CoverFlowView<V> coverFlowView,
-                             int position);
-
-        void invalidationCompleted();
+        void invalidationCompleted(CoverFlowView coverFlowView);
     }
 }

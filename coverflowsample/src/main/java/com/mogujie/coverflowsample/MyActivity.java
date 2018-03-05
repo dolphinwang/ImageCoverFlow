@@ -25,42 +25,42 @@ public class MyActivity extends Activity {
         final MyCoverFlowAdapter adapter = new MyCoverFlowAdapter(this);
         mCoverFlowView.setAdapter(adapter);
         mCoverFlowView
-                .setCoverFlowListener(new CoverFlowView.CoverFlowListener<MyCoverFlowAdapter>() {
+                .setStateListener(new CoverFlowView.StateListener() {
 
                     @Override
-                    public void imageOnTop(
-                            CoverFlowView<MyCoverFlowAdapter> view,
-                            int position, float left, float top, float right,
-                            float bottom) {
+                    public void imageOnTop(CoverFlowView view, int position, float left, float top, float right, float bottom) {
                         Log.e(VIEW_LOG_TAG, position + " on top!");
                     }
 
                     @Override
-                    public void topImageClicked(
-                            CoverFlowView<MyCoverFlowAdapter> view, int position) {
-                        Log.e(VIEW_LOG_TAG, position + " clicked!");
-                    }
-
-                    @Override
-                    public void invalidationCompleted() {
+                    public void invalidationCompleted(CoverFlowView view) {
 
                     }
                 });
 
         mCoverFlowView
-                .setTopImageLongClickListener(new CoverFlowView.TopImageLongClickListener() {
+                .setImageLongClickListener(new CoverFlowView.ImageLongClickListener() {
 
                     @Override
-                    public void onLongClick(int position) {
-                        Log.e(VIEW_LOG_TAG, "top image long clicked == >"
+                    public void onLongClick(CoverFlowView view, int position) {
+                        Log.e(VIEW_LOG_TAG, "top image long clicked ==>"
                                 + position);
                     }
                 });
 
+        mCoverFlowView.setImageClickListener(new CoverFlowView.ImageClickListener() {
+            @Override
+            public void onClick(CoverFlowView coverFlowView, int position) {
+                Log.e(VIEW_LOG_TAG, position + " clicked!");
+                coverFlowView.setSelection(position);
+            }
+        });
+
         findViewById(R.id.change_bitmap_button).setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
-                adapter.changeBitmap();
+//                adapter.changeBitmap();
+                mCoverFlowView.setSelection(2);
             }
         });
     }
