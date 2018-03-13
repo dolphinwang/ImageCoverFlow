@@ -43,7 +43,7 @@ public class MyActivity extends Activity {
 
                     @Override
                     public void onLongClick(CoverFlowView view, int position) {
-                        Log.e(VIEW_LOG_TAG, "top image long clicked ==>"
+                        Log.e(VIEW_LOG_TAG, "image long clicked ==>"
                                 + position);
                     }
                 });

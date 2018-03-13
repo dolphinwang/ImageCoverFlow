@@ -475,7 +475,7 @@ public class CoverFlowView<T extends CoverFlowAdapter> extends View {
         }
 
         // call imageOnTop
-        if (mStateListener != null && (offset - (int) offset) == 0.0f) {
+        if ((offset - (int) offset) == 0.0f) {
             final int topImageIndex = getIndex((int) offset);
 
             if (mTopImageIndex != topImageIndex
@@ -485,9 +485,12 @@ public class CoverFlowView<T extends CoverFlowAdapter> extends View {
             mTopImageIndex = topImageIndex;
             final CoverFlowCell cell = mImageCells.get(topImageIndex);
             cell.isOnTop = true;
-            mStateListener.imageOnTop(this, topImageIndex
-                    , cell.showingRect.left, cell.showingRect.top,
-                    cell.showingRect.right, cell.showingRect.bottom);
+
+            if (mStateListener != null) {
+                mStateListener.imageOnTop(this, topImageIndex
+                        , cell.showingRect.left, cell.showingRect.top,
+                        cell.showingRect.right, cell.showingRect.bottom);
+            }
         }
 
         super.onDraw(canvas);
